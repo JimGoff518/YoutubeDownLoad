@@ -25,5 +25,5 @@ RUN mkdir -p output temp/audio
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Default command (can be overridden in railway.json)
-CMD ["python", "-m", "src.main", "playlist", "--playlist-url", "${PLAYLIST_URL}"]
+# Default command - use shell form to expand environment variables
+CMD python -m src.main playlist --playlist-url "$PLAYLIST_URL"
