@@ -22,8 +22,14 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p output temp/audio
 
+# Make start script executable
+RUN chmod +x start.sh
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Default command - use shell form to expand environment variables
-CMD python -m src.main playlist --playlist-url "$PLAYLIST_URL"
+# Expose the web server port
+EXPOSE 8080
+
+# Run the start script
+CMD ["./start.sh"]

@@ -19,6 +19,9 @@ tqdm>=4.66.1
 # Utilities
 isodate>=0.6.1
 
+# Web server for file downloads
+flask>=3.0.0
+
 # Audio download and transcription (optional fallback)
 yt-dlp>=2024.0.0
 openai-whisper>=20231117
