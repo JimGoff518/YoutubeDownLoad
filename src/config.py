@@ -13,6 +13,13 @@ class Config:
     """Application configuration"""
 
     def __init__(self):
+        # Debug: Print all environment variables that start with relevant prefixes
+        print("=== Environment Variables Debug ===")
+        for key in sorted(os.environ.keys()):
+            if any(prefix in key.upper() for prefix in ['YOUTUBE', 'WHISPER', 'ENABLE', 'CLEANUP', 'OUTPUT', 'PLAYLIST', 'PREFERRED']):
+                print(f"{key} = {os.environ[key][:50]}..." if len(os.environ[key]) > 50 else f"{key} = {os.environ[key]}")
+        print("===================================")
+
         # API Configuration
         self.youtube_api_key = os.getenv("YOUTUBE_API_KEY", "")
         if not self.youtube_api_key:
