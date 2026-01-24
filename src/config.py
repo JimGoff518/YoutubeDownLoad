@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables from .env file (or Railway environment)
 load_dotenv()
 
 
@@ -13,11 +13,15 @@ class Config:
     """Application configuration"""
 
     def __init__(self):
-        # Debug: Print all environment variables that start with relevant prefixes
-        print("=== Environment Variables Debug ===")
+        # Debug: Print ALL environment variables to diagnose Railway issue
+        print("=== ALL Environment Variables ===")
         for key in sorted(os.environ.keys()):
-            if any(prefix in key.upper() for prefix in ['YOUTUBE', 'WHISPER', 'ENABLE', 'CLEANUP', 'OUTPUT', 'PLAYLIST', 'PREFERRED']):
-                print(f"{key} = {os.environ[key][:50]}..." if len(os.environ[key]) > 50 else f"{key} = {os.environ[key]}")
+            value = os.environ[key]
+            # Truncate long values
+            if len(value) > 80:
+                print(f"{key} = {value[:80]}...")
+            else:
+                print(f"{key} = {value}")
         print("===================================")
 
         # API Configuration
