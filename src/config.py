@@ -55,7 +55,7 @@ class Config:
         self.enable_audio_fallback = self._parse_bool(
             os.getenv("ENABLE_AUDIO_FALLBACK", "false")
         )
-        self.whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.whisper_model = os.getenv("WHISPER_MODEL", "whisper-1")
         self.cleanup_audio = self._parse_bool(
             os.getenv("CLEANUP_AUDIO", "true")
         )
