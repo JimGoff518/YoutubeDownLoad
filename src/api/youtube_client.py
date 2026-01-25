@@ -202,8 +202,11 @@ class YouTubeClient:
                 content_details = item["contentDetails"]
                 statistics = item.get("statistics", {})
 
-                # Parse ISO 8601 duration
-                duration_iso = content_details["duration"]
+                # Parse ISO 8601 duration (may be missing for live streams/premieres)
+                duration_iso = content_details.get("duration")
+                if not duration_iso:
+                    # Skip videos without duration (live streams, etc.)
+                    continue
                 duration = isodate.parse_duration(duration_iso)
                 duration_seconds = int(duration.total_seconds())
 
