@@ -1,12 +1,7 @@
 """Transcript extraction using youtube-transcript-api"""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import (
-    TranscriptsDisabled,
-    NoTranscriptFound,
-    VideoUnavailable,
-)
 
 from ..config import config
 from ..models.transcript import Transcript, TranscriptSegment
@@ -22,6 +17,7 @@ class TranscriptFetcher:
             preferred_languages: List of preferred language codes (e.g., ['en', 'es'])
         """
         self.preferred_languages = preferred_languages or config.preferred_languages
+        self.api = YouTubeTranscriptApi()
 
         # Lazy load audio tools
         self.audio_downloader = None
@@ -44,9 +40,7 @@ class TranscriptFetcher:
             # Try each preferred language
             for lang in self.preferred_languages:
                 try:
-                    transcript_data = YouTubeTranscriptApi.get_transcript(
-                        video_id, languages=[lang]
-                    )
+                    transcript_data = self.api.fetch(video_id, languages=[lang])
                     language_used = lang
                     break
                 except Exception:
@@ -55,8 +49,8 @@ class TranscriptFetcher:
             # If no preferred language worked, try without language specification
             if not transcript_data:
                 try:
-                    transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-                    language_used = "unknown"
+                    transcript_data = self.api.fetch(video_id)
+                    language_used = "en"
                 except Exception:
                     pass
 
@@ -64,11 +58,11 @@ class TranscriptFetcher:
             if transcript_data:
                 segments = [
                     TranscriptSegment(
-                        text=item["text"],
-                        start=item["start"],
-                        duration=item["duration"],
+                        text=snippet.text,
+                        start=snippet.start,
+                        duration=snippet.duration,
                     )
-                    for item in transcript_data
+                    for snippet in transcript_data
                 ]
 
                 return Transcript(
@@ -85,19 +79,15 @@ class TranscriptFetcher:
 
             return Transcript(available=False)
 
-        except TranscriptsDisabled:
-            # Transcripts are disabled - try audio fallback if enabled
-            if config.enable_audio_fallback:
-                print(f"Transcripts disabled for {video_id}, trying audio transcription...")
-                return self._transcribe_from_audio(video_id)
-            return Transcript(available=False)
-
-        except VideoUnavailable:
-            # Video is unavailable (private, deleted, etc.)
-            return Transcript(available=False)
-
         except Exception as e:
-            # Any other error - try audio fallback if enabled
+            # Any error - try audio fallback if enabled
+            error_msg = str(e).lower()
+            if "disabled" in error_msg or "no transcript" in error_msg:
+                if config.enable_audio_fallback:
+                    print(f"Transcripts disabled for {video_id}, trying audio transcription...")
+                    return self._transcribe_from_audio(video_id)
+                return Transcript(available=False)
+
             print(f"Warning: Error fetching transcript for {video_id}: {str(e)}")
             if config.enable_audio_fallback:
                 print(f"Trying audio transcription fallback...")
