@@ -3,13 +3,15 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from openai import OpenAI
 
 from ..models.transcript import Transcript, TranscriptSegment
 
 # OpenAI Whisper API limit is 25MB, use 24MB to be safe
 MAX_FILE_SIZE_BYTES = 24 * 1024 * 1024
+# Chunk duration in seconds (15 minutes = ~7MB at 64kbps mono)
+CHUNK_DURATION_SECONDS = 900
 
 
 class WhisperTranscriber:
@@ -77,6 +79,135 @@ class WhisperTranscriber:
             print(f"Error compressing audio: {str(e)}")
             return None
 
+    def _get_audio_duration(self, audio_path: Path) -> Optional[float]:
+        """Get duration of audio file in seconds using ffprobe"""
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(audio_path)
+                ],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                return float(result.stdout.strip())
+        except Exception:
+            pass
+        return None
+
+    def _split_audio(self, audio_path: Path) -> List[Path]:
+        """Split audio file into chunks of CHUNK_DURATION_SECONDS"""
+        duration = self._get_audio_duration(audio_path)
+        if not duration:
+            print("Could not determine audio duration")
+            return []
+
+        chunks = []
+        chunk_num = 0
+        start_time = 0
+
+        num_chunks = int(duration // CHUNK_DURATION_SECONDS) + (1 if duration % CHUNK_DURATION_SECONDS > 0 else 0)
+        print(f"Splitting {duration/60:.1f} min audio into {num_chunks} chunks...")
+
+        while start_time < duration:
+            chunk_path = audio_path.parent / f"{audio_path.stem}_chunk{chunk_num}.mp3"
+
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", str(audio_path),
+                    "-ss", str(start_time),
+                    "-t", str(CHUNK_DURATION_SECONDS),
+                    "-ac", "1",  # Mono
+                    "-ab", "64k",  # 64kbps
+                    "-ar", "16000",  # 16kHz
+                    str(chunk_path)
+                ],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0 and chunk_path.exists():
+                chunks.append(chunk_path)
+            else:
+                print(f"Failed to create chunk {chunk_num}")
+                break
+
+            start_time += CHUNK_DURATION_SECONDS
+            chunk_num += 1
+
+        return chunks
+
+    def _transcribe_single_file(self, audio_path: Path, language: Optional[str] = None) -> Optional[tuple]:
+        """Transcribe a single audio file, returns (segments, language) or None"""
+        client = self._get_client()
+
+        with open(audio_path, "rb") as audio_file:
+            response = client.audio.transcriptions.create(
+                model=self.model_name,
+                file=audio_file,
+                language=language,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"]
+            )
+
+        segments = []
+        for seg in response.segments or []:
+            segments.append(
+                TranscriptSegment(
+                    text=seg.text.strip(),
+                    start=seg.start,
+                    duration=seg.end - seg.start,
+                )
+            )
+
+        return segments, response.language or language or "en"
+
+    def _transcribe_chunks(self, chunks: List[Path], language: Optional[str] = None) -> Transcript:
+        """Transcribe multiple chunks and merge with adjusted timestamps"""
+        all_segments = []
+        detected_language = language or "en"
+        time_offset = 0.0
+
+        for i, chunk_path in enumerate(chunks):
+            print(f"Transcribing chunk {i+1}/{len(chunks)}: {chunk_path.name}")
+
+            try:
+                result = self._transcribe_single_file(chunk_path, language)
+                if result:
+                    segments, lang = result
+                    detected_language = lang
+
+                    # Adjust timestamps for this chunk
+                    for seg in segments:
+                        all_segments.append(
+                            TranscriptSegment(
+                                text=seg.text,
+                                start=seg.start + time_offset,
+                                duration=seg.duration,
+                            )
+                        )
+
+                    print(f"  Chunk {i+1}: {len(segments)} segments")
+
+            except Exception as e:
+                print(f"  Error transcribing chunk {i+1}: {str(e)}")
+
+            # Update offset for next chunk
+            time_offset += CHUNK_DURATION_SECONDS
+
+        print(f"Transcription complete: {len(all_segments)} total segments from {len(chunks)} chunks")
+
+        return Transcript(
+            available=len(all_segments) > 0,
+            language=detected_language,
+            is_auto_generated=True,
+            segments=all_segments,
+        )
+
     def transcribe_audio(
         self, audio_path: Path, language: Optional[str] = None
     ) -> Transcript:
@@ -104,10 +235,28 @@ class WhisperTranscriber:
                     if compressed_path.stat().st_size <= MAX_FILE_SIZE_BYTES:
                         upload_path = compressed_path
                     else:
-                        print(f"Compressed file still too large, skipping...")
-                        if compressed_path.exists():
-                            compressed_path.unlink()
-                        return Transcript(available=False)
+                        # Compressed file still too large - split into chunks
+                        print(f"Compressed file still too large, splitting into chunks...")
+                        chunks = self._split_audio(audio_path)
+                        if chunks:
+                            try:
+                                return self._transcribe_chunks(chunks, language)
+                            finally:
+                                # Clean up all chunk files
+                                for chunk in chunks:
+                                    try:
+                                        if chunk.exists():
+                                            chunk.unlink()
+                                    except Exception:
+                                        pass
+                                # Clean up compressed file
+                                if compressed_path.exists():
+                                    compressed_path.unlink()
+                        else:
+                            print(f"Failed to split audio into chunks")
+                            if compressed_path.exists():
+                                compressed_path.unlink()
+                            return Transcript(available=False)
                 else:
                     print(f"Compression failed, skipping...")
                     return Transcript(available=False)
