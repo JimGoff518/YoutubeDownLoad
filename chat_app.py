@@ -1,4 +1,4 @@
-"""RAG Chatbot for Legal Knowledge Base - Streamlit App (Claude-powered)"""
+"""RAG Chatbot for Legal Knowledge Base - Super Agent Marketing Director (Claude-powered)"""
 
 import os
 import streamlit as st
@@ -25,7 +25,7 @@ openai_client, anthropic_client, pinecone_index = init_clients()
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1024
 CLAUDE_MODEL = "claude-sonnet-4-20250514"  # Using Claude Sonnet
-TOP_K = 25  # Get more chunks for richer context
+TOP_K = 15  # Fewer but complete chunks for better context
 
 # Known entity mappings for query expansion
 ENTITY_MAPPINGS = {
@@ -88,8 +88,8 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
     return sorted_matches[:top_k]
 
 
-def generate_response(query: str, context_chunks: list[dict]) -> str:
-    """Generate response using Claude with retrieved context"""
+def generate_response(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> str:
+    """Generate response using Claude with retrieved context and conversation history"""
 
     # Build context from chunks
     context_parts = []
@@ -107,57 +107,79 @@ def generate_response(query: str, context_chunks: list[dict]) -> str:
 
     context = "\n\n---\n\n".join(context_parts)
 
-    # System prompt for Claude
-    system_prompt = """You are an expert legal practice consultant with deep knowledge from hundreds of podcast episodes, interviews, and educational content about running successful personal injury law firms.
+    # System prompt for Super Agent Marketing Director
+    system_prompt = """You are a SUPER AGENT MARKETING DIRECTOR for personal injury law firms. You have absorbed hundreds of podcast episodes, interviews, and educational content from the top minds in legal marketing.
 
 Your knowledge base includes insights from:
-- Grow Your Law Firm podcast (Ken Hardison)
+- Grow Your Law Firm podcast (Ken Hardison - PILMMA founder)
 - Bourbon of Proof podcast (Bob Simon - LA trial attorney)
-- John Morgan interviews (Morgan & Morgan)
+- John Morgan interviews (Morgan & Morgan - "For the People")
+- Grey Sky Media Podcast (Marketing and business development)
 - And many other legal industry experts
 
-HOW TO RESPOND:
-1. Synthesize insights across multiple sources to provide comprehensive, actionable answers
-2. Draw connections between different experts' perspectives when relevant
-3. Provide specific strategies, tactics, and real examples from the content
-4. When multiple sources discuss a topic, compare and contrast their approaches
-5. Organize longer answers with clear structure (bullet points, numbered lists, headers)
+YOU CAN DO MORE THAN ANSWER QUESTIONS. You are empowered to:
+1. DRAFT content: emails, scripts, marketing plans, intake scripts, ad copy, social media posts
+2. CREATE strategies: full marketing campaigns, referral programs, client nurture sequences
+3. BUILD frameworks: checklists, SOPs, evaluation criteria, decision matrices
+4. ANALYZE situations: review scenarios and provide detailed recommendations
+5. THINK step-by-step through complex problems before giving answers
+
+HOW TO WORK:
+- When asked to draft something, produce COMPLETE, USABLE content - not just outlines
+- When analyzing a situation, think through it systematically before responding
+- Draw on specific examples, quotes, and tactics from your knowledge base
+- Synthesize insights from multiple experts to create better recommendations
+- Be specific and actionable - vague advice is worthless
+
+DRAFTING GUIDELINES:
+- Match the tone to the purpose (professional for client letters, conversational for scripts)
+- Include specific details and personalization hooks
+- Make content ready to use with minimal editing
+- For scripts, include talking points and objection handling
 
 DEPTH AND QUALITY:
-- Don't just quote the context - analyze it, explain the reasoning behind recommendations
+- Don't just quote the context - synthesize it into original, actionable output
 - Connect advice to practical outcomes and real-world application
-- If a topic is covered from multiple angles, present a complete picture
 - Provide the "why" behind recommendations, not just the "what"
+- When multiple sources discuss a topic, weave together the best elements
 
 HONESTY:
-- If the context doesn't cover a topic, say so clearly
-- Distinguish between what's explicitly stated vs. reasonable inferences
-- When experts disagree, present both perspectives
+- If the context doesn't cover a topic well, say so and offer your best reasoning
+- Distinguish between what's explicitly stated vs. your professional inference
+- When experts disagree, present both perspectives with your recommendation
 
-Your goal is to be as helpful as a senior consultant who has absorbed all this content and can provide expert-level guidance."""
+You are a senior marketing director who can both advise AND execute. Act like it."""
 
-    # User message with context
-    user_message = f"""Question: {query}
+    # Build messages with conversation history
+    messages = []
 
-Context from knowledge base (25 most relevant excerpts, ranked by relevance):
+    # Add previous conversation turns (last 10 exchanges max for context)
+    recent_history = conversation_history[-20:]  # Last 10 exchanges (20 messages)
+    for msg in recent_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # Add current query with context
+    user_message = f"""Current Question: {query}
+
+Retrieved Knowledge Base Context ({len(context_chunks)} most relevant excerpts):
 {context}
 
 Instructions:
-- Provide a comprehensive, insightful answer that synthesizes the information above
-- Go beyond surface-level summaries - explain strategies, reasoning, and practical applications
-- If multiple sources discuss this topic, weave together their insights
-- Use specific examples and quotes when they strengthen the answer
-- Structure longer answers clearly with bullets or sections
-- If the context doesn't adequately cover this topic, acknowledge that honestly"""
+- If I'm asking you to DRAFT something, produce complete, usable content
+- If I'm asking a question, provide a comprehensive answer with specific tactics
+- Draw on the conversation history above if relevant
+- Use specific examples and insights from the context
+- Structure longer responses clearly
+- If the context doesn't cover this topic, acknowledge that and provide your best professional reasoning"""
+
+    messages.append({"role": "user", "content": user_message})
 
     # Generate response using Claude
     response = anthropic_client.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=2500,
+        max_tokens=4096,
         system=system_prompt,
-        messages=[
-            {"role": "user", "content": user_message}
-        ]
+        messages=messages
     )
 
     answer = response.content[0].text
@@ -171,13 +193,13 @@ Instructions:
 
 # Streamlit UI
 st.set_page_config(
-    page_title="Legal Knowledge Chatbot",
-    page_icon="⚖️",
+    page_title="Super Agent Marketing Director",
+    page_icon="🚀",
     layout="wide"
 )
 
-st.title("⚖️ Legal Knowledge Chatbot")
-st.markdown("*Powered by Claude - Ask questions about law firm management, marketing, client intake, and more!*")
+st.title("🚀 Super Agent Marketing Director")
+st.markdown("*Your AI marketing director for PI law firms - Ask questions OR request drafts of emails, scripts, plans & more!*")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -206,7 +228,8 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
             if not chunks:
                 response = "I couldn't find any relevant information in the knowledge base. Try rephrasing your question."
             else:
-                response = generate_response(prompt, chunks)
+                # Pass conversation history for context
+                response = generate_response(prompt, chunks, st.session_state.messages)
 
         st.markdown(response)
 
@@ -217,32 +240,36 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
 with st.sidebar:
     st.header("About")
     st.markdown("""
-    This chatbot searches through **535+ transcripts** from:
-    - Grow Your Law Firm Podcast
-    - John Morgan Interviews
-    - Law Office YouTube Favorites
+    Your **Super Agent Marketing Director** with knowledge from:
+    - Grow Your Law Firm Podcast (Ken Hardison)
     - Bourbon of Proof (Bob Simon)
-    - And more!
+    - John Morgan Interviews
+    - Grey Sky Media Podcast
+    - And 500+ more episodes!
 
-    **7,127 knowledge chunks** ready to answer your questions.
+    **I can DRAFT content, not just answer questions!**
 
     *Powered by Claude (Anthropic)*
     """)
 
-    st.header("Sample Questions")
+    st.header("Try These Prompts")
     st.markdown("""
+    **Ask Questions:**
     - What are best practices for client intake?
-    - How should I handle TV advertising?
-    - What advice does John Morgan give?
-    - How do successful firms handle case management?
-    - What marketing strategies work for PI firms?
+    - How does John Morgan approach TV advertising?
+
+    **Request Drafts:**
+    - Draft a follow-up email for a lead who went cold
+    - Write a script for intake specialists
+    - Create a 90-day marketing plan for a new PI firm
+    - Draft social media posts about client testimonials
     """)
 
     st.header("Tips")
     st.markdown("""
-    - Be specific in your questions
-    - Ask about topics, not trivia
-    - The system works best for "how to" and strategy questions
+    - Ask me to **draft** emails, scripts, plans
+    - Be specific about what you need
+    - Follow up - I remember our conversation!
     """)
 
     if st.button("Clear Chat History"):

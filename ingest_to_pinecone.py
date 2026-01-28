@@ -133,7 +133,7 @@ def process_transcript_file(file_path: Path) -> Generator[dict, None, None]:
                 "episode_title": episode_title,
                 "chunk_index": chunk["chunk_index"],
                 "total_chunks": len(chunks),
-                "text": chunk["text"][:1000]  # Store original text for display
+                "text": chunk["text"]  # Store full text for display
             }
             if episode_number is not None:
                 metadata["episode_number"] = episode_number
