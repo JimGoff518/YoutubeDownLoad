@@ -184,9 +184,10 @@ Instructions:
 
     answer = response.content[0].text
 
-    # Add sources
+    # Add sources (small text)
     sources_list = sorted(sources)[:5]  # Limit to top 5 sources
-    sources_text = "\n\n**Sources consulted:**\n" + "\n".join(f"- {s}" for s in sources_list)
+    sources_items = "<br>".join(f"• {s}" for s in sources_list)
+    sources_text = f"\n\n<sub><sup>**Sources consulted:**<br>{sources_items}</sup></sub>"
 
     return answer + sources_text
 
