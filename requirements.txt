@@ -26,3 +26,8 @@ flask>=3.0.0
 yt-dlp>=2024.0.0
 openai>=1.0.0
 ffmpeg-python>=0.2.0
+
+# RAG Chatbot
+streamlit>=1.28.0
+anthropic>=0.18.0
+pinecone>=3.0.0
