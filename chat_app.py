@@ -239,6 +239,9 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
 
 # Sidebar with info
 with st.sidebar:
+    # Header video
+    st.video("assets/header_video.mp4", autoplay=True, loop=True, muted=True)
+
     st.header("About")
     st.markdown("""
     Your **Super Agent Marketing Director** with knowledge from:
