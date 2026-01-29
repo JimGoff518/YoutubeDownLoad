@@ -1,6 +1,7 @@
 """Configuration management"""
 
 import os
+import logging
 from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
@@ -8,22 +9,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env file (or Railway environment)
 load_dotenv()
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 
 class Config:
     """Application configuration"""
 
     def __init__(self):
-        # Debug: Print ALL environment variables to diagnose Railway issue
-        print("=== ALL Environment Variables ===")
-        for key in sorted(os.environ.keys()):
-            value = os.environ[key]
-            # Truncate long values
-            if len(value) > 80:
-                print(f"{key} = {value[:80]}...")
-            else:
-                print(f"{key} = {value}")
-        print("===================================")
-
         # API Configuration
         self.youtube_api_key = os.getenv("YOUTUBE_API_KEY", "")
         if not self.youtube_api_key:
@@ -59,6 +52,11 @@ class Config:
         self.cleanup_audio = self._parse_bool(
             os.getenv("CLEANUP_AUDIO", "true")
         )
+
+        # Log configuration (without exposing secrets)
+        logger.info("Configuration loaded successfully")
+        logger.debug(f"Output directory: {self.output_dir}")
+        logger.debug(f"Max concurrent videos: {self.max_concurrent_videos}")
 
     def _parse_languages(self, lang_str: str) -> List[str]:
         """Parse comma-separated language codes"""
