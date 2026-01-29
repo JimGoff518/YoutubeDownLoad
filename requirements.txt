@@ -1,36 +1,39 @@
 # YouTube API
-google-api-python-client>=2.111.0
-youtube-transcript-api>=1.0.0
+google-api-python-client==2.111.0
+youtube-transcript-api==1.0.0
 
 # Data validation and models
-pydantic>=2.10.0
-pydantic-settings>=2.7.0
+pydantic==2.10.0
+pydantic-settings==2.7.0
 
 # Configuration
-python-dotenv>=1.0.0
+python-dotenv==1.0.1
 
 # CLI
-typer>=0.9.0
-rich>=13.7.0
+typer==0.9.4
+rich==13.7.1
 
 # Progress tracking
-tqdm>=4.66.1
+tqdm==4.66.4
 
 # Utilities
-isodate>=0.6.1
+isodate==0.6.1
 
 # Web server for file downloads
-flask>=3.0.0
+flask==3.0.3
 
 # Audio download and transcription (optional fallback)
-yt-dlp>=2024.0.0
-openai>=1.0.0
-ffmpeg-python>=0.2.0
+yt-dlp==2024.12.23
+openai==1.58.1
+ffmpeg-python==0.2.0
 
 # RAG Chatbot
-streamlit>=1.28.0
-anthropic>=0.18.0
-pinecone>=3.0.0
+streamlit==1.41.1
+anthropic==0.42.0
+pinecone==3.0.2
 
 # Database (PostgreSQL for Railway)
-psycopg2-binary>=2.9.0
+psycopg2-binary==2.9.10
+
+# Retry logic
+tenacity==8.5.0

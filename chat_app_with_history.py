@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from anthropic import Anthropic
 from pinecone import Pinecone
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Import our database module
 from database import (
@@ -86,8 +87,10 @@ def init_clients():
 openai_client, anthropic_client, pinecone_index = init_clients()
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), reraise=True)
 def get_embedding(text: str) -> Optional[list[float]]:
-    """Get embedding for text using OpenAI with error handling."""
+    """Get embedding for text using OpenAI with caching and retry."""
     try:
         response = openai_client.embeddings.create(
             model=EMBEDDING_MODEL,
@@ -97,7 +100,7 @@ def get_embedding(text: str) -> Optional[list[float]]:
         return response.data[0].embedding
     except Exception as e:
         logger.error(f"Error getting embedding: {e}")
-        return None
+        raise
 
 
 def expand_query(query: str) -> list[str]:
@@ -120,10 +123,10 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
     all_matches = {}
 
     for q in queries:
-        query_embedding = get_embedding(q)
-        
-        if query_embedding is None:
-            logger.warning(f"Failed to get embedding for query: {q}")
+        try:
+            query_embedding = get_embedding(q)
+        except Exception as e:
+            logger.warning(f"Failed to get embedding for query after retries: {e}")
             continue
 
         try:
@@ -136,7 +139,7 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
             for match in results.matches:
                 if match.id not in all_matches or match.score > all_matches[match.id].score:
                     all_matches[match.id] = match
-                    
+
         except Exception as e:
             logger.error(f"Pinecone query error: {e}")
             continue
@@ -145,9 +148,9 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
     return sorted_matches[:top_k]
 
 
-def generate_response(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> str:
-    """Generate response using Claude with retrieved context and conversation history."""
-    
+def build_prompt(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> tuple:
+    """Build the prompt components for Claude. Returns (system_prompt, messages, sources_text)."""
+
     # Build context from chunks
     context_parts = []
     sources = set()
@@ -231,25 +234,12 @@ Instructions:
 
     messages.append({"role": "user", "content": user_message})
 
-    try:
-        response = anthropic_client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages
-        )
-        answer = response.content[0].text
-        
-    except Exception as e:
-        logger.error(f"Claude API error: {e}")
-        return f"❌ Sorry, I encountered an error generating a response: {str(e)}"
-
-    # Add sources
+    # Build sources footer
     sources_list = sorted(sources)[:5]
     sources_items = "<br>".join(f"• {s}" for s in sources_list)
     sources_text = f"\n\n<sub><sup>**Sources consulted:**<br>{sources_items}</sup></sub>"
 
-    return answer + sources_text
+    return system_prompt, messages, sources_text
 
 
 # ============================================
@@ -386,18 +376,35 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
 
     # Generate response
     with st.chat_message("assistant"):
-        with st.spinner("Searching knowledge base..."):
+        with st.spinner("🔍 Searching knowledge base..."):
             chunks = search_knowledge_base(prompt)
 
-            if not chunks:
-                response = "I couldn't find any relevant information in the knowledge base. Try rephrasing your question."
-            else:
-                response = generate_response(prompt, chunks, st.session_state.messages)
+        if not chunks:
+            response = "I couldn't find any relevant information in the knowledge base. Try rephrasing your question."
+            st.markdown(response)
+        else:
+            system_prompt, messages, sources_text = build_prompt(prompt, chunks, st.session_state.messages)
 
-        st.markdown(response)
+            try:
+                # Stream the response word-by-word
+                with anthropic_client.messages.stream(
+                    model=CLAUDE_MODEL,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=messages
+                ) as stream:
+                    streamed_text = st.write_stream(stream.text_stream)
+
+                response = streamed_text + sources_text
+                st.markdown(sources_text, unsafe_allow_html=True)
+
+            except Exception as e:
+                logger.error(f"Claude API error: {e}")
+                response = f"❌ Sorry, I encountered an error generating a response: {str(e)}"
+                st.markdown(response)
 
     # Add assistant response to UI and database
     st.session_state.messages.append({"role": "assistant", "content": response})
     add_message(st.session_state.current_conversation_id, "assistant", response)
-    
+
     st.rerun()
