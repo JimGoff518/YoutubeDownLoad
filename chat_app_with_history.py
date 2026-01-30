@@ -343,8 +343,8 @@ Instructions:
 
     # Build sources footer
     sources_list = sorted(sources)[:5]
-    sources_items = "<br>".join(f"• {s}" for s in sources_list)
-    sources_text = f"\n\n<sub><sup>**Sources consulted:**<br>{sources_items}</sup></sub>"
+    sources_items = "".join(f'<div class="source-item">{s}</div>' for s in sources_list)
+    sources_text = f'\n\n<div class="sources-card"><div class="sources-title">Sources consulted</div>{sources_items}</div>'
 
     return system_prompt, messages, sources_text
 
@@ -355,9 +355,154 @@ Instructions:
 
 st.set_page_config(
     page_title="Super Agent Marketing Director",
-    page_icon="🚀",
+    page_icon="⚡",
     layout="wide"
 )
+
+# Apple-inspired custom CSS
+APPLE_CSS = """
+<style>
+/* Global font */
+html, body, [class*="st-"] {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+                 "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Hide default Streamlit chrome */
+#MainMenu, footer {
+    visibility: hidden;
+}
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #F5F5F7 !important;
+    border-right: 1px solid #D2D2D7 !important;
+    padding-top: 1rem;
+}
+section[data-testid="stSidebar"] .stMarkdown h4 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #86868B;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+/* Sidebar buttons */
+section[data-testid="stSidebar"] .stButton > button {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #1D1D1F !important;
+    font-size: 0.875rem !important;
+    font-weight: 400 !important;
+    text-align: left !important;
+    padding: 8px 12px !important;
+    transition: background-color 0.2s ease !important;
+}
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background-color: rgba(0, 0, 0, 0.04) !important;
+}
+section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+    background-color: #0071E3 !important;
+    color: #FFFFFF !important;
+    border-radius: 12px !important;
+    font-weight: 500 !important;
+}
+section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+    background-color: #0077ED !important;
+}
+
+/* Sidebar captions */
+section[data-testid="stSidebar"] .stCaption {
+    color: #86868B !important;
+    font-size: 0.7rem !important;
+    margin-top: -8px !important;
+    padding-left: 12px !important;
+}
+
+/* Sidebar dividers */
+section[data-testid="stSidebar"] hr {
+    border-color: #D2D2D7 !important;
+    margin: 0.75rem 0 !important;
+}
+
+/* Main area */
+.stMainBlockContainer {
+    max-width: 820px !important;
+    padding-top: 2rem !important;
+}
+.stMainBlockContainer h1 {
+    font-size: 1.75rem !important;
+    font-weight: 600 !important;
+    color: #1D1D1F !important;
+    letter-spacing: -0.02em !important;
+}
+
+/* Chat messages */
+div[data-testid="stChatMessage"] {
+    padding: 1rem 1.25rem !important;
+    border-radius: 16px !important;
+    margin-bottom: 1rem !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Chat input */
+div[data-testid="stChatInput"] {
+    border-radius: 24px !important;
+    border: 1px solid #D2D2D7 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+div[data-testid="stChatInput"] textarea {
+    font-size: 0.95rem !important;
+}
+div[data-testid="stChatInput"]:focus-within {
+    border-color: #0071E3 !important;
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15) !important;
+}
+
+/* Sources card */
+.sources-card {
+    background: #FAFAFA;
+    border: 1px solid #E8E8ED;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: #86868B;
+    line-height: 1.6;
+}
+.sources-card .sources-title {
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #86868B;
+    margin-bottom: 6px;
+}
+.sources-card .source-item {
+    padding: 2px 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-thumb {
+    background: #D2D2D7;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+</style>
+"""
+st.markdown(APPLE_CSS, unsafe_allow_html=True)
 
 # Initialize session state
 if "current_conversation_id" not in st.session_state:
@@ -387,10 +532,10 @@ with st.sidebar:
     if os.path.exists("assets/header_video.mp4"):
         st.video("assets/header_video.mp4", autoplay=True, loop=True, muted=True)
 
-    st.header("💬 Conversations")
-    
+    st.markdown("#### CONVERSATIONS")
+
     # New conversation button
-    if st.button("➕ New Conversation", use_container_width=True):
+    if st.button("New Conversation", use_container_width=True, type="primary"):
         start_new_conversation()
         st.rerun()
     
@@ -426,7 +571,7 @@ with st.sidebar:
                     st.rerun()
             
             with col2:
-                if st.button("🗑️", key=f"del_{conv['id']}", help="Delete"):
+                if st.button("×", key=f"del_{conv['id']}", help="Delete conversation"):
                     delete_conversation(conv["id"])
                     if st.session_state.current_conversation_id == conv["id"]:
                         start_new_conversation()
@@ -440,14 +585,14 @@ with st.sidebar:
     st.divider()
     
     # About section
-    st.header("About")
+    st.markdown("#### ABOUT")
     st.markdown("""
     Your **Super Agent Marketing Director** with knowledge from:
     - Grow Your Law Firm Podcast
     - Bourbon of Proof (Bob Simon)
     - John Morgan Interviews
     - And 500+ more episodes!
-    
+
     *Powered by Claude (Anthropic)*
     """)
 
@@ -456,8 +601,8 @@ with st.sidebar:
 # MAIN CHAT AREA
 # ============================================
 
-st.title("🚀 Super Agent Marketing Director")
-st.markdown("*Your AI marketing director for PI law firms - Ask questions OR request drafts!*")
+st.title("Super Agent Marketing Director")
+st.markdown("Your AI marketing director for PI law firms — ask questions or request drafts.")
 
 # Display chat history
 for message in st.session_state.messages:
@@ -483,7 +628,7 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
 
     # Generate response
     with st.chat_message("assistant"):
-        with st.spinner("🔍 Searching knowledge base..."):
+        with st.spinner("Searching knowledge base..."):
             chunks = search_knowledge_base(prompt)
 
         if not chunks:

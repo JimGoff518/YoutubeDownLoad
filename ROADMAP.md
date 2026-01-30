@@ -485,6 +485,69 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ---
 
+## Phase 8: Document Upload, Content Drafting & UI Overhaul
+
+**Objective:** Expand the knowledge base beyond YouTube/podcasts by allowing direct document uploads, add content drafting capabilities (SOPs, checklists), and redesign the UI to be clean, professional, and polished — Apple-product quality.
+
+### 8.1 Document Upload
+
+- [ ] **Build a document upload UI** — Streamlit file uploader supporting PDF, DOCX, TXT, and markdown files
+  - File: `chat_app_with_history.py` — add upload widget (sidebar or dedicated page)
+- [ ] **Parse uploaded documents** — Extract text from each format:
+  - PDF: use `pymupdf` or `pdfplumber`
+  - DOCX: use `python-docx`
+  - TXT/MD: read directly
+- [ ] **Chunk and ingest uploaded documents** — Run the same chunking → embedding → Pinecone upsert pipeline used for transcripts
+  - Reuse logic from `ingest_to_pinecone.py`
+  - Tag with `source` metadata (e.g., filename or user-provided label)
+- [ ] **Track uploaded documents** — Store upload metadata (filename, date, chunk count, source label) in the database or a tracking file
+- [ ] **Allow deleting uploaded documents** — Remove all associated chunks from Pinecone by source filter
+
+### 8.2 Content Drafting (SOPs & Checklists)
+
+- [ ] **Add a drafting mode to the chatbot** — Detect or allow the user to select "draft" mode for generating structured content
+- [ ] **SOP drafting** — Given a topic (e.g., "new client intake process"), generate a structured SOP using knowledge base content as reference
+  - Numbered steps, responsible parties, expected outcomes
+  - Cite relevant expert advice from the knowledge base
+- [ ] **Checklist drafting** — Given a topic (e.g., "pre-trial preparation checklist"), generate an actionable checklist
+  - Checkbox-style output, grouped by category
+  - Pull best practices from ingested content
+- [ ] **Export drafts** — Allow downloading drafted SOPs/checklists as DOCX, PDF, or plain text
+- [ ] **Save drafts** — Store drafts in the conversation history or a separate drafts table for later editing
+
+### 8.3 UI Overhaul — Professional Design
+
+- [ ] **Define the design system** — Clean, minimal aesthetic inspired by Apple products:
+  - Muted color palette (whites, light grays, subtle accent color)
+  - Consistent spacing and alignment
+  - Professional typography (system fonts, clear hierarchy)
+  - Crisp borders, no visual clutter
+- [ ] **Redesign the chat interface** — Clean message bubbles, clear user/assistant distinction, proper spacing
+  - File: `chat_app_with_history.py` — custom CSS via `st.markdown` with `unsafe_allow_html=True`
+- [ ] **Redesign the sidebar** — Organized conversation list, clean navigation, collapsible sections
+- [ ] **Add a header/branding bar** — Firm name or tool name, minimal and professional
+- [ ] **Polish the sources section** — Clean card-style layout for cited sources instead of raw text
+- [ ] **Responsive layout** — Ensure it looks good on desktop, tablet, and mobile
+- [ ] **Loading states** — Elegant loading indicators instead of default Streamlit spinners
+- [ ] **Dark mode support** (optional) — Toggle between light and dark themes
+
+### Testing & Validation (Phase 8)
+
+**Automated:**
+- [ ] Upload a PDF, DOCX, and TXT file — verify each is parsed, chunked, and searchable in the chatbot
+- [ ] Delete an uploaded document — verify its chunks are removed from Pinecone
+- [ ] Generate an SOP and a checklist — verify structured output with citations
+- [ ] Export a draft as DOCX — verify the file is valid and formatted
+
+**Manual:**
+- [ ] Upload a real firm document — ask a question about its content and verify relevant answers
+- [ ] Draft an SOP for "new client intake" — review for completeness and usefulness
+- [ ] Review the UI on desktop and mobile — confirm clean, professional appearance with no layout issues
+- [ ] Compare before/after screenshots — confirm the redesign is a visible improvement
+- [ ] Show the UI to a non-technical user — confirm it feels intuitive and polished
+
+---
+
 ## Not Planned (Decided Against)
 
 These were considered and explicitly excluded for now.
