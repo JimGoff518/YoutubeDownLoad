@@ -2,6 +2,10 @@
 
 Extract transcripts from all videos in a YouTube channel with rich metadata optimized for machine learning and agent knowledge applications.
 
+> **Full Technical Reference:** See [DOCUMENTATION.md](DOCUMENTATION.md) for complete API calls, data models, and configuration details.
+> **Current Project Status:** See [PROJECT_STATUS.md](PROJECT_STATUS.md) for architecture, components, and configuration.
+> **Feature Roadmap:** See [ROADMAP.md](ROADMAP.md) for planned phases and future features.
+
 ## Features
 
 - Extract transcripts from entire YouTube channels

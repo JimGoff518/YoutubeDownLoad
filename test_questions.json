@@ -1,0 +1,181 @@
+{
+  "version": "1.0",
+  "description": "Evaluation query set for retrieval quality tuning (Phase 2.2)",
+  "queries": [
+    {
+      "id": "gen_01",
+      "category": "general_strategy",
+      "query": "How do I grow my personal injury law firm?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "gen_02",
+      "category": "general_strategy",
+      "query": "What are the best marketing strategies for PI attorneys?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "gen_03",
+      "category": "general_strategy",
+      "query": "How do I hire and retain good attorneys?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "gen_04",
+      "category": "general_strategy",
+      "query": "What makes a great intake process?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "gen_05",
+      "category": "general_strategy",
+      "query": "How should I handle client referrals?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "gen_06",
+      "category": "general_strategy",
+      "query": "What is the best way to scale a law firm?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "src_01",
+      "category": "source_specific",
+      "query": "What does Bob Simon say about trial strategy?",
+      "expected_sources": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
+      "should_return_results": true
+    },
+    {
+      "id": "src_02",
+      "category": "source_specific",
+      "query": "What advice does Ken Hardison give about PILMMA?",
+      "expected_sources": ["GrowYourLawFirmPlaylist", "podcast_Grow_Your_Law_Firm"],
+      "should_return_results": true
+    },
+    {
+      "id": "src_03",
+      "category": "source_specific",
+      "query": "How did John Morgan build Morgan & Morgan?",
+      "expected_sources": ["JohnMorganInterviews"],
+      "should_return_results": true
+    },
+    {
+      "id": "src_04",
+      "category": "source_specific",
+      "query": "What does the Bourbon of Proof podcast say about negotiation?",
+      "expected_sources": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
+      "should_return_results": true
+    },
+    {
+      "id": "src_05",
+      "category": "source_specific",
+      "query": "What does Grey Sky Media recommend for digital marketing?",
+      "expected_sources": ["GreySkyMediaPodcast"],
+      "should_return_results": true
+    },
+    {
+      "id": "src_06",
+      "category": "source_specific",
+      "query": "What does Grow Your Law Firm say about SEO?",
+      "expected_sources": ["GrowYourLawFirmPlaylist", "podcast_Grow_Your_Law_Firm"],
+      "should_return_results": true
+    },
+    {
+      "id": "niche_01",
+      "category": "niche",
+      "query": "How do I set up a mass tort department?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "niche_02",
+      "category": "niche",
+      "query": "What are the best TV ad strategies for law firms?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "niche_03",
+      "category": "niche",
+      "query": "How do I handle negative Google reviews?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "niche_04",
+      "category": "niche",
+      "query": "What is the ideal cost per case for a PI firm?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "niche_05",
+      "category": "niche",
+      "query": "How do I build a referral network with other attorneys?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "niche_06",
+      "category": "niche",
+      "query": "What CRM should a PI law firm use?",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "null_01",
+      "category": "should_return_nothing",
+      "query": "What is the recipe for chocolate cake?",
+      "expected_sources": null,
+      "should_return_results": false
+    },
+    {
+      "id": "null_02",
+      "category": "should_return_nothing",
+      "query": "How do I fix a flat tire?",
+      "expected_sources": null,
+      "should_return_results": false
+    },
+    {
+      "id": "null_03",
+      "category": "should_return_nothing",
+      "query": "What is the capital of France?",
+      "expected_sources": null,
+      "should_return_results": false
+    },
+    {
+      "id": "null_04",
+      "category": "should_return_nothing",
+      "query": "Explain quantum computing",
+      "expected_sources": null,
+      "should_return_results": false
+    },
+    {
+      "id": "draft_01",
+      "category": "drafting",
+      "query": "Draft a follow-up email for a potential client who called about a car accident",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "draft_02",
+      "category": "drafting",
+      "query": "Write a script for an intake specialist handling a slip and fall call",
+      "expected_sources": null,
+      "should_return_results": true
+    },
+    {
+      "id": "draft_03",
+      "category": "drafting",
+      "query": "Create a 30-day social media plan for a PI law firm",
+      "expected_sources": null,
+      "should_return_results": true
+    }
+  ]
+}

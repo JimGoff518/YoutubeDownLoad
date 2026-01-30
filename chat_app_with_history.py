@@ -2,9 +2,11 @@
 Now with conversation history!"""
 
 import os
+import json
 import logging
+import threading
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -12,6 +14,7 @@ from openai import OpenAI
 from anthropic import Anthropic
 from pinecone import Pinecone
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import cohere
 
 # Import our database module
 from database import (
@@ -38,21 +41,43 @@ load_dotenv()
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1024
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
-TOP_K = 15
+TOP_K = 25  # Fetch more candidates for reranking
+RERANK_TOP_K = 10  # Keep top 10 after reranking
+MIN_SCORE_THRESHOLD = 0.3  # Drop chunks below this relevance score
 PINECONE_INDEX_NAME = "legal-docs"
 
-# Known entity mappings for query expansion
-ENTITY_MAPPINGS = {
-    "bob simon": ["bourbon of proof", "bob simon"],
-    "bourbon of proof": ["bob simon", "bourbon of proof"],
-    "john morgan": ["john morgan", "morgan & morgan"],
-    "grow your law firm": ["grow your law firm", "ken hardison"],
-}
+# Retrieval logging
+RETRIEVAL_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "retrieval_log.jsonl")
+_log_lock = threading.Lock()
+
+
+def log_retrieval_metrics(metrics: dict):
+    """Append a metrics record to the JSONL retrieval log."""
+    metrics["timestamp"] = datetime.now(timezone.utc).isoformat()
+    try:
+        with _log_lock:
+            with open(RETRIEVAL_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(metrics) + "\n")
+    except Exception as e:
+        logger.warning(f"Failed to write retrieval log: {e}")
+
+# Load entity mappings from config file
+MAPPINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entity_mappings.json")
+try:
+    with open(MAPPINGS_FILE, "r") as f:
+        _mappings = json.load(f)
+    ENTITY_MAPPINGS = _mappings.get("query_expansion", {})
+    SOURCE_KEYWORDS_CONFIG = _mappings.get("source_filters", {})
+    logger.info(f"Loaded {len(ENTITY_MAPPINGS)} entity mappings and {len(SOURCE_KEYWORDS_CONFIG)} source filters")
+except FileNotFoundError:
+    logger.warning(f"Entity mappings file not found at {MAPPINGS_FILE}, using empty mappings")
+    ENTITY_MAPPINGS = {}
+    SOURCE_KEYWORDS_CONFIG = {}
 
 
 def validate_environment() -> bool:
     """Validate required environment variables are set."""
-    required_vars = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PINECONE_API_KEY"]
+    required_vars = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PINECONE_API_KEY", "COHERE_API_KEY"]
     missing = [var for var in required_vars if not os.getenv(var)]
     
     if missing:
@@ -73,9 +98,10 @@ def init_clients():
         anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
         index = pc.Index(PINECONE_INDEX_NAME)
-        
+        cohere_client = cohere.ClientV2(api_key=os.getenv("COHERE_API_KEY"))
+
         logger.info("All API clients initialized successfully")
-        return openai_client, anthropic_client, index
+        return openai_client, anthropic_client, index, cohere_client
         
     except Exception as e:
         logger.error(f"Failed to initialize clients: {e}")
@@ -84,7 +110,7 @@ def init_clients():
 
 
 # Initialize clients
-openai_client, anthropic_client, pinecone_index = init_clients()
+openai_client, anthropic_client, pinecone_index, cohere_client = init_clients()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -117,10 +143,44 @@ def expand_query(query: str) -> list[str]:
     return queries[:3]
 
 
+def rerank_results(query: str, matches: list, return_scores: bool = False):
+    """Rerank results using Cohere for better relevance ordering."""
+    if not matches:
+        return (matches, []) if return_scores else matches
+    try:
+        documents = [m.metadata.get("text", "") for m in matches]
+        response = cohere_client.rerank(
+            model="rerank-v3.5",
+            query=query,
+            documents=documents,
+            top_n=RERANK_TOP_K,
+        )
+        reranked = [matches[r.index] for r in response.results]
+        scores = [r.relevance_score for r in response.results]
+        logger.info(f"Reranked {len(matches)} chunks down to {len(reranked)}")
+        return (reranked, scores) if return_scores else reranked
+    except Exception as e:
+        logger.warning(f"Reranking failed, using original order: {e}")
+        fallback = matches[:RERANK_TOP_K]
+        return (fallback, []) if return_scores else fallback
+
+
+def detect_source_filter(query: str) -> list[str] | None:
+    """Detect if the query mentions a known source and return its Pinecone source names."""
+    query_lower = query.lower()
+    for keyword, source_names in SOURCE_KEYWORDS_CONFIG.items():
+        if keyword in query_lower:
+            if isinstance(source_names, str):
+                return [source_names]
+            return source_names
+    return None
+
+
 def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
-    """Search Pinecone with query expansion and deduplication."""
+    """Search Pinecone with query expansion, metadata filtering, and deduplication."""
     queries = expand_query(query)
     all_matches = {}
+    source_filter = detect_source_filter(query)
 
     for q in queries:
         try:
@@ -130,6 +190,7 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
             continue
 
         try:
+            # Unfiltered search
             results = pinecone_index.query(
                 vector=query_embedding,
                 top_k=top_k,
@@ -140,12 +201,58 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
                 if match.id not in all_matches or match.score > all_matches[match.id].score:
                     all_matches[match.id] = match
 
+            # Source-filtered search if a source was detected
+            if source_filter:
+                filtered_results = pinecone_index.query(
+                    vector=query_embedding,
+                    top_k=top_k,
+                    include_metadata=True,
+                    filter={"source": {"$in": source_filter}}
+                )
+                for match in filtered_results.matches:
+                    if match.id not in all_matches or match.score > all_matches[match.id].score:
+                        all_matches[match.id] = match
+
         except Exception as e:
             logger.error(f"Pinecone query error: {e}")
             continue
 
     sorted_matches = sorted(all_matches.values(), key=lambda x: x.score, reverse=True)
-    return sorted_matches[:top_k]
+
+    # Capture pre-filter metrics
+    pinecone_total = len(sorted_matches)
+    pinecone_score_range = (
+        (round(sorted_matches[-1].score, 4), round(sorted_matches[0].score, 4))
+        if sorted_matches else (None, None)
+    )
+
+    # Filter out low-relevance chunks
+    sorted_matches = [m for m in sorted_matches if m.score >= MIN_SCORE_THRESHOLD]
+    after_threshold = len(sorted_matches)
+
+    # Rerank for better relevance ordering
+    reranked, cohere_scores = rerank_results(query, sorted_matches[:top_k], return_scores=True)
+    cohere_score_range = (
+        (round(min(cohere_scores), 4), round(max(cohere_scores), 4))
+        if cohere_scores else (None, None)
+    )
+
+    # Log retrieval metrics
+    log_retrieval_metrics({
+        "query": query,
+        "source_filter": source_filter,
+        "num_expanded_queries": len(queries),
+        "pinecone_results_total": pinecone_total,
+        "pinecone_score_min": pinecone_score_range[0],
+        "pinecone_score_max": pinecone_score_range[1],
+        "after_threshold_filter": after_threshold,
+        "threshold": MIN_SCORE_THRESHOLD,
+        "after_rerank": len(reranked),
+        "cohere_score_min": cohere_score_range[0],
+        "cohere_score_max": cohere_score_range[1],
+    })
+
+    return reranked
 
 
 def build_prompt(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> tuple:
@@ -380,7 +487,16 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
             chunks = search_knowledge_base(prompt)
 
         if not chunks:
-            response = "I couldn't find any relevant information in the knowledge base. Try rephrasing your question."
+            logger.info(f"No results for query: {prompt}")
+            response = (
+                "I wasn't able to find relevant information in the knowledge base for that question. "
+                "This could mean the topic isn't covered in the podcasts and content I've been trained on.\n\n"
+                "You could try:\n"
+                "- Rephrasing your question\n"
+                "- Asking about a specific source (e.g., 'What does Bob Simon say about...')\n"
+                "- Broadening your topic\n\n"
+                "If you think this topic should be covered, let me know so we can add relevant content."
+            )
             st.markdown(response)
         else:
             system_prompt, messages, sources_text = build_prompt(prompt, chunks, st.session_state.messages)

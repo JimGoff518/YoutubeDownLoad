@@ -424,6 +424,190 @@ def playlist(
 
 
 @app.command()
+def podcast(
+    rss_url: str = typer.Option(
+        ..., "--rss-url", "-r", help="Podcast RSS feed URL"
+    ),
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output JSON file path (default: output/podcast_<title>.json)",
+    ),
+    max_episodes: Optional[int] = typer.Option(
+        None, "--max-episodes", "-m", help="Maximum number of episodes to process"
+    ),
+    skip_existing: bool = typer.Option(
+        True, "--skip-existing/--no-skip-existing", help="Skip episodes already in output file"
+    ),
+):
+    """Extract transcripts from a podcast RSS feed
+
+    Examples:
+        python -m src.main podcast --rss-url "https://example.com/feed.xml"
+        python -m src.main podcast -r "https://feed.url/rss?size=1000" --max-episodes 10
+        python -m src.main podcast -r "RSS_URL" -o my_podcast.json
+    """
+    try:
+        from datetime import datetime, timezone
+        from tqdm import tqdm
+        import json
+        import re
+
+        from .api.podcast_fetcher import PodcastFetcher, AudioDownloader
+        from .api.whisper_transcriber import WhisperTranscriber
+        from .models.podcast import (
+            PodcastExtractionResult,
+            PodcastExtractionMetadata,
+            PodcastErrorEntry,
+        )
+
+        # Fetch RSS feed
+        fetcher = PodcastFetcher(rss_url)
+        podcast_info, episodes = fetcher.fetch_feed()
+
+        # Set default output path
+        if output is None:
+            # Sanitize podcast title for filename
+            safe_title = re.sub(r'[^\w\s-]', '', podcast_info.title)
+            safe_title = re.sub(r'\s+', '_', safe_title)[:50]
+            output = config.output_dir / f"podcast_{safe_title}.json"
+
+        # Load existing data if skip_existing is enabled
+        existing_guids = set()
+        existing_episodes = []
+        existing_errors = []
+        if skip_existing and output.exists():
+            try:
+                with open(output, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+                    existing_episodes = existing_data.get("episodes", [])
+                    existing_errors = existing_data.get("errors", [])
+                    # Only skip episodes that have successful transcripts
+                    existing_guids = {ep["guid"] for ep in existing_episodes if ep.get("transcript", {}).get("available", False)}
+                    console.print(f"[yellow]Found {len(existing_episodes)} episodes in output file ({len(existing_guids)} with transcripts)[/yellow]")
+            except Exception:
+                pass
+
+        # Filter out existing episodes
+        episodes_to_process = [ep for ep in episodes if ep.guid not in existing_guids]
+
+        # Limit episodes if requested
+        if max_episodes:
+            episodes_to_process = episodes_to_process[:max_episodes]
+
+        # Show configuration
+        console.print("\n[bold cyan]Podcast Transcript Extractor[/bold cyan]")
+        console.print(f"Podcast: {podcast_info.title}")
+        console.print(f"Feed URL: {rss_url}")
+        console.print(f"Total episodes in feed: {len(episodes)}")
+        console.print(f"Episodes to process: {len(episodes_to_process)}")
+        console.print(f"Output: {output.absolute()}")
+        console.print("")
+
+        if not episodes_to_process:
+            console.print("[yellow]No new episodes to process.[/yellow]")
+            raise typer.Exit(0)
+
+        # Initialize components
+        downloader = AudioDownloader()
+        transcriber = WhisperTranscriber()
+
+        # Process episodes
+        processed_episodes = list(existing_episodes)  # Start with existing
+        errors = list(existing_errors)
+        successful_count = len([ep for ep in existing_episodes if ep.get("transcript", {}).get("available", False)])
+
+        console.print(f"Processing {len(episodes_to_process)} episodes...")
+        for episode in tqdm(episodes_to_process, desc="Processing episodes", unit="episode"):
+            try:
+                # Create safe filename from GUID
+                safe_filename = re.sub(r'[^\w-]', '_', episode.guid)[:100]
+
+                # Download audio
+                audio_path = downloader.download(episode.audio_url, safe_filename)
+
+                if not audio_path:
+                    errors.append(PodcastErrorEntry(
+                        episode_guid=episode.guid,
+                        episode_title=episode.title,
+                        error_type="DownloadError",
+                        error_message="Failed to download audio file",
+                    ).model_dump(mode="json"))
+                    continue
+
+                # Transcribe
+                transcript = transcriber.transcribe_audio(audio_path)
+
+                # Update episode with transcript
+                episode.transcript = transcript
+
+                if transcript.available:
+                    successful_count += 1
+
+                # Add to results
+                processed_episodes.append(episode.model_dump(mode="json"))
+
+                # Cleanup audio file
+                downloader.cleanup(safe_filename)
+
+            except Exception as e:
+                errors.append(PodcastErrorEntry(
+                    episode_guid=episode.guid,
+                    episode_title=episode.title,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                ).model_dump(mode="json"))
+                console.print(f"\nError processing episode '{episode.title}': {str(e)}")
+
+            # Save progress after each episode
+            output_data = {
+                "schema_version": "1.0.0",
+                "extraction_metadata": {
+                    "extracted_at": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                    "extractor_version": "1.0.0",
+                    "feed_url": rss_url,
+                    "total_episodes_processed": len(processed_episodes),
+                    "successful_extractions": successful_count,
+                    "failed_extractions": len(errors),
+                },
+                "podcast": podcast_info.model_dump(mode="json"),
+                "episodes": processed_episodes,
+                "errors": errors,
+            }
+
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with open(output, "w", encoding="utf-8") as f:
+                json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+        console.print(f"\n[green]Output saved to:[/green] {output.absolute()}")
+
+        # Print summary
+        console.print("\n" + "=" * 60)
+        console.print("[bold]Podcast Extraction Summary[/bold]")
+        console.print("=" * 60)
+        console.print(f"Podcast: {podcast_info.title}")
+        console.print(f"Episodes Processed: {len(processed_episodes)}")
+        console.print(f"Transcripts Extracted: {successful_count}")
+        console.print(f"Failed Extractions: {len(errors)}")
+        console.print("=" * 60)
+
+        # Success
+        console.print("\n[bold green]Extraction completed successfully![/bold green]")
+
+    except KeyboardInterrupt:
+        console.print("\n\n[yellow]Extraction cancelled by user[/yellow]")
+        console.print("[yellow]Progress has been saved to output file.[/yellow]")
+        raise typer.Exit(130)
+
+    except Exception as e:
+        console.print(f"\n[red]Fatal error:[/red] {str(e)}", style="bold")
+        import traceback
+        traceback.print_exc()
+        raise typer.Exit(1)
+
+
+@app.command()
 def version():
     """Show version information"""
     from . import __version__

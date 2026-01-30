@@ -1,0 +1,17 @@
+{
+    "query_expansion": {
+        "bob simon": ["bourbon of proof", "bob simon"],
+        "bourbon of proof": ["bob simon", "bourbon of proof"],
+        "john morgan": ["john morgan", "morgan & morgan"],
+        "grow your law firm": ["grow your law firm", "ken hardison"]
+    },
+    "source_filters": {
+        "bourbon of proof": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
+        "bob simon": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
+        "grow your law firm": ["GrowYourLawFirmPlaylist", "podcast_Grow_Your_Law_Firm"],
+        "ken hardison": ["GrowYourLawFirmPlaylist", "podcast_Grow_Your_Law_Firm"],
+        "john morgan": ["JohnMorganInterviews"],
+        "morgan & morgan": ["JohnMorganInterviews"],
+        "grey sky": ["GreySkyMediaPodcast"]
+    }
+}
