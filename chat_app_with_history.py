@@ -396,12 +396,13 @@ section[data-testid="stSidebar"] .stMarkdown h4 {
 section[data-testid="stSidebar"] .stButton > button {
     background: transparent !important;
     border: none !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     color: #1D1D1F !important;
-    font-size: 0.875rem !important;
+    font-size: 0.8rem !important;
     font-weight: 400 !important;
     text-align: left !important;
-    padding: 8px 12px !important;
+    padding: 5px 10px !important;
+    min-height: 0 !important;
     transition: background-color 0.2s ease !important;
 }
 section[data-testid="stSidebar"] .stButton > button:hover {
@@ -420,9 +421,16 @@ section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
 /* Sidebar captions */
 section[data-testid="stSidebar"] .stCaption {
     color: #86868B !important;
-    font-size: 0.7rem !important;
-    margin-top: -8px !important;
-    padding-left: 12px !important;
+    font-size: 0.65rem !important;
+    margin-top: -10px !important;
+    margin-bottom: -8px !important;
+    padding-left: 10px !important;
+    line-height: 1.2 !important;
+}
+
+/* Compact sidebar spacing */
+section[data-testid="stSidebar"] .stElementContainer {
+    margin-bottom: -4px !important;
 }
 
 /* Sidebar dividers */
