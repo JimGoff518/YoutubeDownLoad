@@ -42,7 +42,9 @@ Thumbs.db
 
 # Output
 output/
-*.json
+!entity_mappings.json
+!railway.json
+!pytest.ini
 
 # Temporary files
 temp/

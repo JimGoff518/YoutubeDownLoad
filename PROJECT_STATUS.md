@@ -1,6 +1,6 @@
 # Bill AI Machine - Project Status
 
-**Last updated:** January 30, 2026
+**Last updated:** February 1, 2026
 **Owner:** Goff Law (Personal Injury Law Firm, Dallas TX)
 
 ---
@@ -77,6 +77,8 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
 | Dynamic entity mappings (JSON config) | `entity_mappings.json` | Working |
 | Per-query retrieval logging (JSONL) | `chat_app_with_history.py` | New |
 | Retrieval evaluation framework | `eval_retrieval.py` | New |
+| Apple-inspired UI/CSS overhaul | `chat_app_with_history.py` | New |
+| Streamlit theme config | `.streamlit/config.toml` | New |
 
 ### 4. Infrastructure (Working)
 
@@ -95,6 +97,27 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
 | `transcribe_local_audio.py` | Batch transcribe local audio files | Working |
 | `retry_failed_transcriptions.py` | Retry failed transcriptions with chunking | Working |
 | `parse_logs.py` | Debug log parsing | Working |
+| `extract_pdf.py` | Extract text from PDFs to ingestion-compatible JSON | New |
+| `extract_web_article.py` | Extract web articles to ingestion-compatible JSON | New |
+| `extract_youtube.py` | YouTube video extraction (Windows-safe wrapper) | New |
+| `extract_trial_lawyer.py` | Magazine article classifier (Claude-powered, marketing relevance) | New |
+| `ingest_new_sources.py` | Selective ingestion of specific JSON files to Pinecone | New |
+
+### 6. Automated Tests (New)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `tests/test_models.py` | 18 | Pydantic models (Transcript, Video, Channel, Podcast) |
+| `tests/test_config.py` | 7 | Config parsing, env vars, validation |
+| `tests/test_json_writer.py` | 6 | JSON write/validate/summary |
+| `tests/test_database.py` | 9 | Conversation CRUD (in-memory SQLite) |
+| `tests/test_utils.py` | 18 | chunk_text, URL parsers, duration/date parsing |
+| `tests/test_youtube_client.py` | 8 | YouTube API (mocked Google client) |
+| `tests/test_transcript_fetcher.py` | 5 | Transcript fetch, retry, language fallback |
+| `tests/test_podcast_fetcher.py` | 5 | RSS feed parsing (mocked HTTP) |
+| `tests/test_video_processor.py` | 8 | ML features, video/channel processing |
+| `tests/test_ingestion.py` | 7 | Transcript file processing, chunking |
+| **Total** | **107** | Run: `python -m pytest tests/ -v` |
 
 ---
 
@@ -132,14 +155,27 @@ All keys go in `.env` file.
 
 ## Content Sources Ingested
 
-Entity mappings are configured in `entity_mappings.json`:
+Entity mappings are configured in `entity_mappings.json`. Pinecone index: **10,355 vectors** (as of Jan 31, 2026).
 
-| Source | Pinecone source name |
-|--------|---------------------|
-| Grow Your Law Firm Podcast (Ken Hardison) | `grow_your_law_firm` |
-| Bourbon of Proof Podcast (Bob Simon) | `bourbon_of_proof` |
-| John Morgan / Morgan & Morgan | `john_morgan` |
-| Grey Sky Media Podcast | `grey_sky_media` |
+| Source | Type | Pinecone source name | Entity mapped |
+|--------|------|---------------------|---------------|
+| Grow Your Law Firm Podcast (Ken Hardison) | Podcast | `GrowYourLawFirmPlaylist`, `podcast_Grow_Your_Law_Firm` | Yes |
+| Bourbon of Proof Podcast (Bob Simon) | YouTube | `Burbon of Proof PlaylistJson (1)`, `BurbonofProofPlaylist` | Yes |
+| John Morgan / Morgan & Morgan | YouTube | `JohnMorganInterviews` | Yes |
+| Grey Sky Media Podcast | Podcast | `GreySkyMediaPodcast` | Yes |
+| CEO Lawyer / Ali Awad | YouTube | `CEOLawyer_AliAwad_Playlist` | Yes |
+| You Can't Teach Hungry (Mike Morse) | YouTube | `YouCantTeachHungry_2024` | Yes |
+| Maximum Lawyer Podcast | YouTube | `MaximumLawyer_Playlist` | Yes |
+| PIM Podcast | Podcast | `PIM_Podcast_Season1`, `PIM_Podcast_Season2` | Yes |
+| Colleen Joy — Legal Intake & AI | YouTube | `ptimizing Legal Intake...` | Yes |
+| Law Office YouTube Favorites | YouTube | `LawOfficeYoutubeFavorites` | No |
+| Abrams Rd transcript (voice memo) | Audio | `Abrams_Rd_transcript` | No |
+| Law Firm Marketing Secrets 2025 (3 videos) | YouTube | `youtube_ZBAC0BA4ux8`, `youtube_cn6zcEhH-qU`, `youtube_DQZvcjcG_cI` | Yes |
+| First AML Legal Tech Trends Report 2025 | PDF | `LegalTechTrends2025` | Yes |
+| CMO Survey 2025 (LMA-ATL) | PDF | `CMOSurvey2025` | Yes |
+| Attorney at Work — Marketing Trends 2026 | Web | `AttorneyAtWork_MarketingTrends2026` | Yes |
+| Trial Lawyer Magazine (8 issues, 2024-2025) | PDF | `TrialLawyer_Spring2024` thru `TrialLawyer_AList2025` | Yes |
+| PreLitGuru Sessions | YouTube | `PreLitGuru_Sessions` | **Removed** |
 
 ---
 
@@ -175,6 +211,13 @@ docker run -p 8080:8080 --env-file .env bill-ai-machine
 
 ## Recent Changes
 
+- **Feb 1, 2026 (session 8):** Status check & continued transcription — Reviewed project status and roadmap. Resumed PIM podcast batch transcription (Season 2 remaining 32 episodes completed, Season 3 in progress). Attempted MaxLawCon 2022 zip extraction from Box — file was empty/corrupt (202 bytes), needs re-download. Created `COMMANDS.md` cheat sheet for MARVIN CLI commands.
+- **Jan 31, 2026 (session 7):** New content ingestion — Built PDF extraction (`extract_pdf.py`), web article extraction (`extract_web_article.py`), YouTube wrapper (`extract_youtube.py`), and Trial Lawyer magazine article classifier (`extract_trial_lawyer.py`). Ingested 14 new sources: 3 YouTube videos (law firm marketing 2025), 2 industry report PDFs (Legal Tech Trends, CMO Survey), 1 web article (Attorney at Work 2026 trends), 8 Trial Lawyer magazine issues (marketing articles only, LLM-filtered). 238 new chunks added to Pinecone (10,355 total vectors). Updated entity mappings for all new sources. Added pdfplumber, beautifulsoup4, lxml, requests to requirements.txt.
+- **Jan 31, 2026 (session 6):** Batch transcription round 2 — Discovered Box zip downloads contain significantly more episodes than originally processed (S1: 92 vs 43, S2: 97 vs 28, S3: 150 vs 4). Extracted 6 zip files to temp directory. Started transcription of 264 missing episodes across all 3 PIM seasons. Transcription running via Whisper API (resume-safe). Streamlit Community Cloud account confirmed suspended/app deleted — hosting migration needed. Updated entity mappings for 9 previously unmapped sources.
+- **Jan 30, 2026 (session 5):** Planning session — Defined Super Agent vision statement (AI Director of Marketing for Goff Law). Audited output folder: 14 JSON files exist, only 4 have entity mappings. Decisions: remove PreLitGuru from Pinecone, add entity mappings for 9 unmapped sources, build episode relevance classifier to filter non-marketing content, add ingestion exclude list. Added 6 new roadmap phases: Phase 9 (Auto-Refresh Pipeline), Phase 10 (Security), Phase 11 (Memory Retention), Phase 12 (Image Generation), Phase 13 (Chelsea's Dashboard & Notifications), Phase 14 (Customer Satisfaction). Identified Chelsea (COO) as key user alongside Jim. Updated ROADMAP.md with vision and all new phases.
+- **Jan 30, 2026 (session 4):** Discussion-only session — Diagnosed Streamlit Community Cloud rate limit block. Researched hosting alternatives (Railway, AWS Free Tier, Render, Reflex, Dash Enterprise). Decision pending: likely migrate Streamlit app to Railway for reliable paid hosting (~$5-20/month) to avoid free-tier limits.
+- **Jan 30, 2026 (session 3):** Phase 6.6 Automated Tests — Built full pytest test suite from scratch (107 tests across 10 test files). Covers models, config, JSON storage, database CRUD, text chunking, URL parsing, YouTube API, transcript fetcher, podcast fetcher, video processor, ingestion pipeline. All external APIs mocked. Fixed bug in `chunk_text()` (infinite loop on whitespace-only input). Added pytest/pytest-cov/pytest-mock to requirements.txt, `pytest.ini`, `tests/` directory.
+- **Jan 29, 2026 (session 2):** Phase 8.3 UI Overhaul — Added Apple-inspired custom CSS (~140 lines), `.streamlit/config.toml` theme, redesigned sidebar (compact conversation list, uppercase headers, clean buttons), pill-shaped chat input with blue focus ring, sources card component, removed all emojis, hidden Streamlit chrome. Added Phase 8 to ROADMAP.md.
 - **Jan 30, 2026:** Implemented Phase 2.2 and 2.3 — retrieval evaluation framework (`eval_retrieval.py`, `test_questions.json`), per-query JSONL logging, improved no-results handler, fixed source filter bug (mapped to actual Pinecone source values, `$eq` → `$in`). Eval results: 6/6 source accuracy, 4/4 off-topic filtering, 0 false positives. Added Cohere API key.
 - **Jan 29, 2026:** Transcribed voice memo (Abrams Rd.m4a) with project vision for Super Agent. Added Phase 7 (Super Agent — Director of Marketing) to ROADMAP.md with episode key takeaways extraction pipeline and proactive marketing intelligence features.
 - **Jan 2026:** Added Cohere reranking, score threshold filtering, metadata-based source filtering, externalized entity mappings to JSON config. Created PROJECT_STATUS.md, ROADMAP.md. Added doc cross-references in README.md and DOCUMENTATION.md.
@@ -203,13 +246,20 @@ Bill AI Machine/
 │   │   └── video_processor.py
 │   └── storage/
 │       └── json_writer.py
+├── .streamlit/config.toml        # Streamlit theme (Apple-inspired colors)
 ├── chat_app_with_history.py      # Main RAG chatbot (Streamlit)
 ├── chat_app.py                   # Basic chatbot (no history)
 ├── database.py                   # Conversation persistence
 ├── ingest_to_pinecone.py         # Transcript → Pinecone pipeline
 ├── entity_mappings.json          # Query expansion & source filter config
+├── COMMANDS.md                   # MARVIN CLI commands cheat sheet
 ├── PROJECT_STATUS.md             # Current system status & architecture
 ├── ROADMAP.md                    # Phased feature roadmap
+├── extract_pdf.py                # PDF → ingestion JSON extractor
+├── extract_web_article.py        # Web article → ingestion JSON extractor
+├── extract_youtube.py            # YouTube video extractor (Windows-safe)
+├── extract_trial_lawyer.py       # Magazine article classifier (Claude LLM)
+├── ingest_new_sources.py         # Selective Pinecone ingestion script
 ├── eval_retrieval.py             # Retrieval quality evaluation script
 ├── test_questions.json           # 25 test queries for eval framework
 ├── eval_results.json             # Latest eval run output
@@ -219,6 +269,19 @@ Bill AI Machine/
 ├── start.sh                      # Container startup
 ├── requirements.txt              # Python dependencies
 ├── .env                          # API keys (not committed)
+├── pytest.ini                    # pytest configuration
+├── tests/                        # Automated test suite (107 tests)
+│   ├── conftest.py               # Shared fixtures
+│   ├── test_models.py            # Pydantic model tests
+│   ├── test_config.py            # Config parsing tests
+│   ├── test_json_writer.py       # JSON storage tests
+│   ├── test_database.py          # Database CRUD tests
+│   ├── test_utils.py             # Utility function tests
+│   ├── test_youtube_client.py    # YouTube API tests (mocked)
+│   ├── test_transcript_fetcher.py # Transcript fetcher tests (mocked)
+│   ├── test_podcast_fetcher.py   # Podcast fetcher tests (mocked)
+│   ├── test_video_processor.py   # Video processor tests (mocked)
+│   └── test_ingestion.py         # Ingestion pipeline tests
 ├── output/                       # Extracted JSON files
 └── .devcontainer/                # GitHub Codespaces config
 ```

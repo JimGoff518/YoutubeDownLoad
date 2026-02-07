@@ -3,7 +3,18 @@
         "bob simon": ["bourbon of proof", "bob simon"],
         "bourbon of proof": ["bob simon", "bourbon of proof"],
         "john morgan": ["john morgan", "morgan & morgan"],
-        "grow your law firm": ["grow your law firm", "ken hardison"]
+        "grow your law firm": ["grow your law firm", "ken hardison"],
+        "ali awad": ["ali awad", "ceo lawyer"],
+        "ceo lawyer": ["ali awad", "ceo lawyer"],
+        "mike morse": ["mike morse", "you can't teach hungry"],
+        "you can't teach hungry": ["mike morse", "you can't teach hungry"],
+        "maximum lawyer": ["maximum lawyer"],
+        "pim podcast": ["pim podcast"],
+        "colleen joy": ["colleen joy", "legal intake"],
+        "trial lawyer magazine": ["trial lawyer magazine", "trial lawyer"],
+        "legal tech trends": ["legal tech trends", "legal technology"],
+        "cmo survey": ["cmo survey", "legal marketing survey"],
+        "charley mann": ["charley mann", "law firm marketing"]
     },
     "source_filters": {
         "bourbon of proof": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
@@ -12,6 +23,20 @@
         "ken hardison": ["GrowYourLawFirmPlaylist", "podcast_Grow_Your_Law_Firm"],
         "john morgan": ["JohnMorganInterviews"],
         "morgan & morgan": ["JohnMorganInterviews"],
-        "grey sky": ["GreySkyMediaPodcast"]
+        "grey sky": ["GreySkyMediaPodcast"],
+        "ali awad": ["CEOLawyer_AliAwad_Playlist"],
+        "ceo lawyer": ["CEOLawyer_AliAwad_Playlist"],
+        "mike morse": ["YouCantTeachHungry_2024"],
+        "you can't teach hungry": ["YouCantTeachHungry_2024"],
+        "maximum lawyer": ["MaximumLawyer_Playlist"],
+        "pim podcast": ["PIM_Podcast_Season1", "PIM_Podcast_Season2", "PIM_Podcast_Season3"],
+        "colleen joy": ["ptimizing Legal Intake and Client Engagement Through Al With Colleen Joy"],
+        "legal intake": ["ptimizing Legal Intake and Client Engagement Through Al With Colleen Joy"],
+        "trial lawyer magazine": ["TrialLawyer_Spring2024", "TrialLawyer_Summer2024", "TrialLawyer_Fall2024", "TrialLawyer_Spring2025", "TrialLawyer_Summer2025", "TrialLawyer_Fall2025", "TrialLawyer_Winter2025", "TrialLawyer_AList2025"],
+        "trial lawyer": ["TrialLawyer_Spring2024", "TrialLawyer_Summer2024", "TrialLawyer_Fall2024", "TrialLawyer_Spring2025", "TrialLawyer_Summer2025", "TrialLawyer_Fall2025", "TrialLawyer_Winter2025", "TrialLawyer_AList2025"],
+        "legal tech trends": ["LegalTechTrends2025"],
+        "cmo survey": ["CMOSurvey2025"],
+        "attorney at work": ["AttorneyAtWork_MarketingTrends2026"],
+        "charley mann": ["youtube_DQZvcjcG_cI"]
     }
 }

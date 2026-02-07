@@ -1,8 +1,27 @@
 # Bill AI Machine - Feature Roadmap
 
 **Owner:** Goff Law (Dallas, TX)
-**Primary User:** Firm owner (personal tool)
-**Core Purpose:** AI-powered knowledge base for PI law firm strategy, built from YouTube and podcast content from top legal industry voices.
+**Primary Users:** Jim (firm owner, strategic direction) and Chelsea (COO, executes marketing strategy)
+**Core Purpose:** AI-powered Director of Marketing ("Super Agent") for PI law firm strategy, built from YouTube and podcast content from top legal industry voices.
+
+---
+
+## Super Agent Vision
+
+**A full-time AI marketing executive that knows everything the top PI minds know — and stays current.**
+
+Because Super Agent is built on YouTube and podcast content, it has access to the most current thinking in PI marketing. This industry changes constantly — AI, search engines, LLMs, consolidation, emerging torts, technology, market competition, price per case, tort reform, private equity — and the experts discuss these shifts on their shows in near real-time. Super Agent absorbs all of it.
+
+**The goal is for Goff Law to be ahead of the curve.** Super Agent gives COO Chelsea (and Jim) the latest trends, reports, checklists, and strategy to implement at the firm — synthesized from 15+ industry voices, filtered through Goff Law's specific situation.
+
+### What Super Agent does at maturity:
+1. **Knows everything the top PI marketing minds know** — Ken Hardison, Bob Simon, John Morgan, Mike Morse, Ali Awad, and more. Continuously updated as new episodes drop.
+2. **Thinks like a marketing executive** — synthesizes across sources, connects insights to Goff Law's market, gives actionable strategy (not just search results).
+3. **Proactively surfaces intelligence** — weekly briefings, trending topics, competitive intel, content calendar ideas. Doesn't wait to be asked.
+4. **Produces deliverables** — SOPs, checklists, infographics, social media content, strategy docs. Things Chelsea can hand to the team on Monday.
+5. **Stays current** — the real-time knowledge advantage. Podcasts and YouTube are the fastest-moving source of PI marketing intelligence. Super Agent is always up to date.
+6. **Gets smarter over time** — remembers preferences, past decisions, what worked. Tracks its own quality and improves.
+7. **Is secure and reliable** — auth, audit logging, backups.
 
 ---
 
@@ -123,6 +142,14 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
   - Status: not started / in progress / ingested / failed
   - Date ingested, number of episodes/videos, chunk count
   - Notes (any issues encountered)
+
+### 3.1.1 New Content Type Pipelines (Session 7 — Complete)
+
+- [x] **PDF ingestion pipeline** — `extract_pdf.py` extracts text via pdfplumber, outputs ingestion-compatible JSON
+- [x] **Web article ingestion pipeline** — `extract_web_article.py` fetches/parses articles via BeautifulSoup
+- [x] **Magazine article classifier** — `extract_trial_lawyer.py` uses Claude to identify marketing-relevant articles in magazine PDFs (score 1-5, ingest 3+)
+- [x] **YouTube extraction wrapper** — `extract_youtube.py` bypasses Rich Unicode bug on Windows
+- [x] **Batch ingestion of 14 new sources** — 3 YouTube videos, 2 industry PDFs, 1 web article, 8 Trial Lawyer magazine issues (238 chunks, 10,355 total vectors)
 
 ### 3.2 Batch Ingestion of New YouTube Channels
 
@@ -327,6 +354,19 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ---
 
+## Phase 5.7: Hosting Migration (Urgent)
+
+**Objective:** Get the Streamlit app back online after Streamlit Community Cloud suspension. Find reliable paid hosting.
+
+- [ ] **Evaluate hosting options** — Railway (~$5-20/mo), Render, AWS Free Tier, fly.io. Key criteria: easy deploy, custom domain, persistent DB, reasonable cost.
+- [ ] **Set up new hosting** — Deploy the Streamlit app + PostgreSQL conversation DB to chosen platform
+- [ ] **Verify full functionality** — Chat, conversation history, source filtering, streaming all work on new host
+- [ ] **Update DNS / share new URL** — Point any bookmarks or links to the new deployment
+- [ ] **Update Dockerfile / start.sh if needed** — Adapt deployment config for the new platform
+- [ ] **Document the new hosting setup** — Update PROJECT_STATUS.md and README.md with new deploy instructions
+
+---
+
 ## Phase 6: Data Quality & Operations
 
 **Objective:** Keep the system healthy, reliable, and cost-effective as the dataset grows. Prevent duplicate content, monitor costs, and establish a backup strategy.
@@ -397,33 +437,21 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ### 6.6 Automated Tests
 
-- [ ] **Extraction pipeline tests** — Write tests that:
-  - Extract a single known YouTube video and verify the output structure
-  - Extract a single known podcast episode and verify the output structure
-  - Validate that the JSON output matches the Pydantic models
-  - File: create `tests/test_extraction.py`
-- [ ] **Ingestion pipeline tests** — Write tests that:
-  - Chunk a known transcript and verify chunk count, overlap, and boundaries
-  - Generate an embedding and verify its dimension (1024)
-  - Upsert to a test Pinecone namespace and verify the vector exists
-  - File: create `tests/test_ingestion.py`
-- [ ] **RAG pipeline tests** — Write tests that:
-  - Run a query through the full pipeline (embed → search → rerank → generate)
-  - Verify the response includes source citations
-  - Verify score threshold filtering works (off-topic query returns no results)
-  - File: create `tests/test_rag.py`
-- [ ] **Database tests** — Write tests that:
-  - Create a conversation, add messages, retrieve them
-  - Delete a conversation and verify it's gone
-  - Search conversations by keyword
-  - File: create `tests/test_database.py`
-- [ ] **Set up a test runner** — Configure `pytest` and add a `make test` or `npm test`-equivalent command
+- [x] **Set up test infrastructure** — pytest, pytest-cov, pytest-mock in `requirements.txt`, `pytest.ini`, `tests/conftest.py` with shared fixtures
+- [x] **Pydantic model tests** (18 tests) — Transcript, Video, Channel, Podcast models, computed fields, validation, serialization. File: `tests/test_models.py`
+- [x] **Config & storage tests** (13 tests) — Env parsing, bool/language parsing, validation, JSON write/read/validate. Files: `tests/test_config.py`, `tests/test_json_writer.py`
+- [x] **Database tests** (9 tests) — Full CRUD on conversations and messages using in-memory SQLite. File: `tests/test_database.py`
+- [x] **Utility function tests** (18 tests) — chunk_text, generate_chunk_id, parse_duration, parse_pub_date, YouTube URL extractors (channel, video, playlist). File: `tests/test_utils.py`
+- [x] **API client tests** (18 tests) — YouTubeClient, TranscriptFetcher, PodcastFetcher with mocked external APIs. Files: `tests/test_youtube_client.py`, `tests/test_transcript_fetcher.py`, `tests/test_podcast_fetcher.py`
+- [x] **Processor & pipeline tests** (15 tests) — VideoProcessor ML features, video/channel processing, ingestion file parsing. Files: `tests/test_video_processor.py`, `tests/test_ingestion.py`
+- [x] **Set up a test runner** — `pytest.ini` configured, run with `python -m pytest tests/ -v`
+- [ ] **RAG pipeline tests** — Full query pipeline (embed → search → rerank → generate), source citations, off-topic filtering. File: create `tests/test_rag.py`
 - [ ] **Add tests to CI** (optional) — Run tests on every commit via GitHub Actions
 
 ### Testing & Validation (Phase 6)
 
 **Automated:**
-- [ ] Run `pytest tests/` — all tests pass
+- [x] Run `pytest tests/` — all 107 tests pass (0 failures)
 - [ ] Run the ingestion pipeline on a test file — verify ingestion log is written with correct metrics
 - [ ] Run duplicate detection — ingest the same file twice and verify no duplicate chunks in Pinecone
 - [ ] Run the stale content report — verify it returns results for old content
@@ -517,16 +545,16 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ### 8.3 UI Overhaul — Professional Design
 
-- [ ] **Define the design system** — Clean, minimal aesthetic inspired by Apple products:
+- [x] **Define the design system** — Clean, minimal aesthetic inspired by Apple products:
   - Muted color palette (whites, light grays, subtle accent color)
   - Consistent spacing and alignment
   - Professional typography (system fonts, clear hierarchy)
   - Crisp borders, no visual clutter
-- [ ] **Redesign the chat interface** — Clean message bubbles, clear user/assistant distinction, proper spacing
+- [x] **Redesign the chat interface** — Clean message bubbles, clear user/assistant distinction, proper spacing
   - File: `chat_app_with_history.py` — custom CSS via `st.markdown` with `unsafe_allow_html=True`
-- [ ] **Redesign the sidebar** — Organized conversation list, clean navigation, collapsible sections
-- [ ] **Add a header/branding bar** — Firm name or tool name, minimal and professional
-- [ ] **Polish the sources section** — Clean card-style layout for cited sources instead of raw text
+- [x] **Redesign the sidebar** — Organized conversation list, clean navigation, collapsible sections
+- [x] **Add a header/branding bar** — Firm name or tool name, minimal and professional
+- [x] **Polish the sources section** — Clean card-style layout for cited sources instead of raw text
 - [ ] **Responsive layout** — Ensure it looks good on desktop, tablet, and mobile
 - [ ] **Loading states** — Elegant loading indicators instead of default Streamlit spinners
 - [ ] **Dark mode support** (optional) — Toggle between light and dark themes
@@ -548,6 +576,141 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ---
 
+## Phase 9: Auto-Refresh Pipeline
+
+**Objective:** Automate the ingestion of new content so Super Agent stays current without manual intervention. This is critical infrastructure for the "stays current" promise.
+
+- [ ] **Automated monitoring** — Check YouTube channels and podcast RSS feeds for new episodes on a schedule (daily or weekly)
+- [ ] **Auto-extract and ingest** — On detection of new content: extract transcript, chunk, embed, upsert to Pinecone
+- [ ] **Auto-update entity mappings** — If a new source is added, prompt for entity mapping updates
+- [ ] **Scheduling** — Cron job, task scheduler, or cloud-based scheduler to run checks automatically
+- [ ] **Ingestion notifications** — Notify when new content is ingested ("3 new episodes ingested this week")
+- [ ] **Error handling and retry** — Graceful handling of failed extractions/ingestions with retry logic
+- [ ] **Ingestion log** — Append to `ingestion_log.jsonl` after each auto-run
+
+### Testing & Validation (Phase 9)
+
+**Automated:**
+- [ ] Trigger the auto-refresh pipeline manually — confirm it detects a known new episode and ingests it
+- [ ] Verify notification is sent after ingestion
+- [ ] Verify ingestion log is updated
+
+**Manual:**
+- [ ] Let the pipeline run on schedule for one week — confirm new episodes are ingested without intervention
+- [ ] Verify no duplicate ingestion of already-processed episodes
+
+---
+
+## Phase 10: Security
+
+**Objective:** Lock down the application with authentication, audit logging, and hardened secrets management.
+
+- [ ] **User authentication** — Add login/password for the Streamlit app (e.g., Streamlit Authenticator or custom auth)
+- [ ] **Audit logging** — Track who accessed what, when (logins, queries, actions)
+- [ ] **Review and harden secrets handling** — Ensure API keys are not exposed in logs, error messages, or client-side code
+
+### Testing & Validation (Phase 10)
+
+**Automated:**
+- [ ] Verify unauthenticated users cannot access the app
+- [ ] Verify audit log captures login events and queries
+
+**Manual:**
+- [ ] Attempt to access the app without credentials — confirm access is denied
+- [ ] Review audit log after a day of usage — confirm all access is logged
+
+---
+
+## Phase 11: Memory Retention
+
+**Objective:** Give Super Agent persistent memory across sessions so it remembers user preferences, past decisions, firm context, and strategic direction.
+
+- [ ] **Cross-session memory store** — Database or file-based storage for agent memory (not just conversation history)
+- [ ] **Preference tracking** — Remember user preferences (e.g., "Jim prefers bullet-point summaries," "Chelsea wants action items")
+- [ ] **Decision history** — Track past strategic decisions and their outcomes (e.g., "Decided to focus on mass tort marketing in Q1")
+- [ ] **Firm context persistence** — Maintain an evolving profile of Goff Law's current marketing state, priorities, and goals
+- [ ] **Memory retrieval in prompts** — Inject relevant memories into the system prompt for each conversation
+
+### Testing & Validation (Phase 11)
+
+**Automated:**
+- [ ] Set a preference in one conversation, start a new conversation — verify the agent remembers it
+- [ ] Verify firm context is included in agent responses
+
+**Manual:**
+- [ ] Have a conversation about mass tort strategy, then in a new session ask "what did we decide about mass torts?" — confirm accurate recall
+
+---
+
+## Phase 12: Image Generation
+
+**Objective:** Enable Super Agent to produce visual marketing assets from knowledge base content.
+
+- [ ] **Image generation integration** — Connect to Banana Pro, Gemini, or equivalent image generation API
+- [ ] **Infographics** — Generate visual summaries of key strategies (e.g., "5 Intake Optimization Tips from Top PI Firms")
+- [ ] **Checklist graphics** — Shareable SOP visuals for staff
+- [ ] **Social media graphics** — Key quotes and stats from the knowledge base, formatted for social channels
+- [ ] **Presentation slides** — Strategy meeting-ready slides for internal use
+- [ ] **Template system** — Reusable templates for each asset type with Goff Law branding
+
+### Testing & Validation (Phase 12)
+
+**Automated:**
+- [ ] Generate an infographic from a known topic — verify image is produced and readable
+- [ ] Generate a checklist graphic — verify formatting and content accuracy
+
+**Manual:**
+- [ ] Review 5 generated assets — rate each for visual quality and content accuracy
+- [ ] Share a generated checklist with the team — confirm it's usable as-is
+
+---
+
+## Phase 13: Chelsea's Dashboard & Notifications
+
+**Objective:** Build a task-oriented interface for Chelsea (COO) with push notifications, so she gets actionable intelligence without having to dig through chat.
+
+- [ ] **Dashboard UI** — Streamlit page or separate app with:
+  - "This week's briefing" — auto-generated summary of new insights from recently ingested content
+  - "Pending action items" — recommendations from Super Agent awaiting implementation
+  - "New content ingested" — what's new in the knowledge base
+- [ ] **Push delivery** — Email digest or Slack notifications for weekly briefings, new trend alerts, and action items
+- [ ] **Role-based views** — Jim sees strategic/vision content, Chelsea sees tactical/actionable content
+- [ ] **Mobile-friendly** — Responsive design for on-the-go access
+
+### Testing & Validation (Phase 13)
+
+**Automated:**
+- [ ] Verify dashboard loads with current week's briefing
+- [ ] Verify email/Slack notification is delivered on schedule
+
+**Manual:**
+- [ ] Chelsea reviews the dashboard for one week — confirm it surfaces useful, actionable content
+- [ ] Verify mobile layout is usable on phone
+
+---
+
+## Phase 14: Customer Satisfaction
+
+**Objective:** Track and improve the quality of Super Agent's output over time through user feedback and quality metrics.
+
+- [ ] **Per-response rating** — Thumbs up/down or 1-5 star rating on each agent response
+- [ ] **Feedback storage** — Store ratings with query, response, and context for analysis
+- [ ] **Quality metrics dashboard** — Track answer quality trends, identify weak areas
+- [ ] **Knowledge gap identification** — Flag topics where responses consistently rate poorly (content gap in KB)
+- [ ] **Improvement tracking** — Compare quality metrics month-over-month to verify the system is getting better
+
+### Testing & Validation (Phase 14)
+
+**Automated:**
+- [ ] Verify rating widget appears on each response
+- [ ] Verify ratings are stored and retrievable
+
+**Manual:**
+- [ ] Rate 20 responses over a week — review the quality dashboard and confirm trends are visible
+- [ ] Identify one knowledge gap from low ratings — verify it corresponds to a real content gap
+
+---
+
 ## Not Planned (Decided Against)
 
 These were considered and explicitly excluded for now.
@@ -556,7 +719,7 @@ These were considered and explicitly excluded for now.
 - ~~Case research mode~~ — Not needed at this stage
 - ~~Content planning mode~~ — Not needed at this stage
 - ~~Client intake helper~~ — Not needed at this stage
-- ~~Multi-user access~~ — Single user, no auth needed
+- ~~Multi-user access~~ — Moved to Phase 10 (Security) and Phase 13 (Chelsea's Dashboard). Jim + Chelsea are key users.
 
 ---
 
@@ -577,7 +740,7 @@ Ideas that are interesting but not committed to. May move into a phase above if 
 
 | Idea | What it would do | Why I'm unsure |
 |------|-----------------|----------------|
-| **Auto-refresh pipeline** | Automatically check RSS feeds and YouTube channels for new episodes on a schedule, ingest without manual intervention. | Adds infrastructure complexity (cron, queue, monitoring). Worth it only once the source list stabilizes. |
+| ~~**Auto-refresh pipeline**~~ | Moved to Phase 9 (committed). |  |
 | **Topic tagging on ingestion** | Auto-tag each chunk with topics (e.g., "mass torts," "intake optimization," "Google LSAs") during ingestion so you can filter by topic in the chatbot. | Need a reliable tagging approach. Could use LLM classification but adds cost per chunk. |
 | **Knowledge gap analysis** | Compare what's in the knowledge base against a list of important PI topics to identify what's NOT covered. | Requires defining the "ideal" topic list first. Unclear how to measure coverage meaningfully. |
 | **Digest / summary reports** | Weekly or monthly summary of what's new in the knowledge base -- new episodes ingested, trending topics, notable insights. | Nice to have but unclear if the effort to build it is worth it at current scale. |

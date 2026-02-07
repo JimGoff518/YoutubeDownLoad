@@ -19,8 +19,9 @@ tqdm==4.66.4
 # Utilities
 isodate==0.6.1
 
-# Web server for file downloads
+# Web server
 flask==3.0.3
+gunicorn==22.0.0
 
 # Audio download and transcription (optional fallback)
 yt-dlp==2024.12.23
@@ -28,7 +29,6 @@ openai==1.58.1
 ffmpeg-python==0.2.0
 
 # RAG Chatbot
-streamlit==1.41.1
 anthropic==0.42.0
 pinecone==3.0.2
 
@@ -40,3 +40,14 @@ tenacity==8.5.0
 
 # Reranking
 cohere==5.13.3
+
+# PDF and web extraction
+pdfplumber==0.11.4
+beautifulsoup4==4.12.3
+lxml==5.3.0
+requests==2.32.3
+
+# Testing
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-mock==3.14.0

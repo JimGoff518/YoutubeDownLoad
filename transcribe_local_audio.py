@@ -179,7 +179,7 @@ def transcribe_audio_files(
 
 
 if __name__ == '__main__':
-    source_dir = r"C:\Users\jim\Videos\4K Video Downloader+\GreySkyMediaPodcast"
-    output_file = r"C:\Users\jim\OneDrive\Documents\Bill AI Machine\output\GreySkyMediaPodcast.json"
+    source_dir = r"C:\Users\jim\Downloads\PIM_extracted\Season 1\Personal Injury Mastermind (PIM) Podcast (Season 1)"
+    output_file = r"C:\Users\jim\OneDrive\Documents\Bill AI Machine\output\PIM_Podcast_Season1.json"
 
     transcribe_audio_files(source_dir, output_file)

@@ -27,6 +27,9 @@ EMBEDDING_DIMENSION = 1024  # Match existing index
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[dict]:
     """Split text into overlapping chunks"""
+    if not text or not text.strip():
+        return []
+
     # Rough token estimate: 4 chars per token
     char_chunk_size = chunk_size * 4
     char_overlap = overlap * 4

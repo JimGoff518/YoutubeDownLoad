@@ -27,7 +27,7 @@ DATABASE_PATH = Path(os.getenv("DATABASE_PATH", "./conversations.db"))
 def get_connection():
     """Get a database connection."""
     if DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
         conn.autocommit = False
         return conn
     else:

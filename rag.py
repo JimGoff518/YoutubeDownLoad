@@ -1,5 +1,9 @@
-"""RAG Chatbot for Legal Knowledge Base - Super Agent Marketing Director (Claude-powered)
-Now with conversation history!"""
+"""RAG pipeline for Legal Knowledge Base - Super Agent Marketing Director.
+
+Extracts all retrieval-augmented generation logic from chat_app_with_history.py
+with zero Streamlit dependencies. Suitable for use in any Python backend
+(FastAPI, CLI, tests, etc.).
+"""
 
 import os
 import json
@@ -8,36 +12,30 @@ import threading
 from typing import Optional
 from datetime import datetime, timezone
 
-import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
 from anthropic import Anthropic
 from pinecone import Pinecone
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential
 import cohere
 
-# Import our database module
-from database import (
-    create_conversation,
-    add_message,
-    get_conversation_messages,
-    get_all_conversations,
-    update_conversation_title,
-    delete_conversation,
-    generate_title_from_message,
-)
-
-# Set up logging
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
 load_dotenv()
 
-# Configuration
+# ---------------------------------------------------------------------------
+# Configuration constants
+# ---------------------------------------------------------------------------
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1024
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
@@ -46,14 +44,9 @@ RERANK_TOP_K = 10  # Keep top 10 after reranking
 MIN_SCORE_THRESHOLD = 0.3  # Drop chunks below this relevance score
 PINECONE_INDEX_NAME = "legal-docs"
 
-# Page config must be the first Streamlit command
-st.set_page_config(
-    page_title="Super Agent Marketing Director",
-    page_icon="⚡",
-    layout="wide"
-)
-
+# ---------------------------------------------------------------------------
 # Retrieval logging
+# ---------------------------------------------------------------------------
 RETRIEVAL_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "retrieval_log.jsonl")
 _log_lock = threading.Lock()
 
@@ -68,7 +61,10 @@ def log_retrieval_metrics(metrics: dict):
     except Exception as e:
         logger.warning(f"Failed to write retrieval log: {e}")
 
-# Load entity mappings from config file
+
+# ---------------------------------------------------------------------------
+# Entity mappings
+# ---------------------------------------------------------------------------
 MAPPINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entity_mappings.json")
 try:
     with open(MAPPINGS_FILE, "r") as f:
@@ -82,60 +78,74 @@ except FileNotFoundError:
     SOURCE_KEYWORDS_CONFIG = {}
 
 
+# ---------------------------------------------------------------------------
+# Environment validation
+# ---------------------------------------------------------------------------
 def validate_environment() -> bool:
     """Validate required environment variables are set."""
     required_vars = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PINECONE_API_KEY", "COHERE_API_KEY"]
     missing = [var for var in required_vars if not os.getenv(var)]
-    
+
     if missing:
         logger.error(f"Missing required environment variables: {missing}")
         return False
     return True
 
 
-@st.cache_resource
-def init_clients():
-    """Initialize API clients with error handling."""
-    if not validate_environment():
-        st.error("❌ Missing required API keys. Please check your .env file.")
-        st.stop()
-    
-    try:
+# ---------------------------------------------------------------------------
+# Lazy singleton client initialization
+# ---------------------------------------------------------------------------
+_clients = None
+
+
+def get_clients():
+    """Return (openai_client, anthropic_client, pinecone_index, cohere_client).
+
+    Clients are created once on first call and reused thereafter.
+    """
+    global _clients
+    if _clients is None:
+        if not validate_environment():
+            raise RuntimeError("Missing required API keys")
         openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
         index = pc.Index(PINECONE_INDEX_NAME)
         cohere_client = cohere.ClientV2(api_key=os.getenv("COHERE_API_KEY"))
-
+        _clients = (openai_client, anthropic_client, index, cohere_client)
         logger.info("All API clients initialized successfully")
-        return openai_client, anthropic_client, index, cohere_client
-        
-    except Exception as e:
-        logger.error(f"Failed to initialize clients: {e}")
-        st.error(f"❌ Failed to connect to services: {str(e)}")
-        st.stop()
+    return _clients
 
 
-# Initialize clients
-openai_client, anthropic_client, pinecone_index, cohere_client = init_clients()
+# ---------------------------------------------------------------------------
+# Embedding (dict cache replaces @st.cache_data)
+# ---------------------------------------------------------------------------
+_embedding_cache: dict[str, list[float]] = {}
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), reraise=True)
 def get_embedding(text: str) -> Optional[list[float]]:
     """Get embedding for text using OpenAI with caching and retry."""
+    if text in _embedding_cache:
+        return _embedding_cache[text]
     try:
+        openai_client = get_clients()[0]
         response = openai_client.embeddings.create(
             model=EMBEDDING_MODEL,
             input=text,
             dimensions=EMBEDDING_DIMENSION
         )
-        return response.data[0].embedding
+        embedding = response.data[0].embedding
+        _embedding_cache[text] = embedding
+        return embedding
     except Exception as e:
         logger.error(f"Error getting embedding: {e}")
         raise
 
 
+# ---------------------------------------------------------------------------
+# Query expansion
+# ---------------------------------------------------------------------------
 def expand_query(query: str) -> list[str]:
     """Expand query with related terms."""
     queries = [query]
@@ -150,11 +160,15 @@ def expand_query(query: str) -> list[str]:
     return queries[:3]
 
 
+# ---------------------------------------------------------------------------
+# Reranking
+# ---------------------------------------------------------------------------
 def rerank_results(query: str, matches: list, return_scores: bool = False):
     """Rerank results using Cohere for better relevance ordering."""
     if not matches:
         return (matches, []) if return_scores else matches
     try:
+        cohere_client = get_clients()[3]
         documents = [m.metadata.get("text", "") for m in matches]
         response = cohere_client.rerank(
             model="rerank-v3.5",
@@ -172,6 +186,9 @@ def rerank_results(query: str, matches: list, return_scores: bool = False):
         return (fallback, []) if return_scores else fallback
 
 
+# ---------------------------------------------------------------------------
+# Source filter detection
+# ---------------------------------------------------------------------------
 def detect_source_filter(query: str) -> list[str] | None:
     """Detect if the query mentions a known source and return its Pinecone source names."""
     query_lower = query.lower()
@@ -183,8 +200,12 @@ def detect_source_filter(query: str) -> list[str] | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Knowledge-base search
+# ---------------------------------------------------------------------------
 def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
     """Search Pinecone with query expansion, metadata filtering, and deduplication."""
+    pinecone_index = get_clients()[2]
     queries = expand_query(query)
     all_matches = {}
     source_filter = detect_source_filter(query)
@@ -262,6 +283,9 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
     return reranked
 
 
+# ---------------------------------------------------------------------------
+# Prompt builder
+# ---------------------------------------------------------------------------
 def build_prompt(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> tuple:
     """Build the prompt components for Claude. Returns (system_prompt, messages, sources_text)."""
 
@@ -356,325 +380,17 @@ Instructions:
     return system_prompt, messages, sources_text
 
 
-# ============================================
-# STREAMLIT UI
-# ============================================
-
-# Apple-inspired custom CSS
-APPLE_CSS = """
-<style>
-/* Global font */
-html, body, [class*="st-"] {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-                 "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* Hide default Streamlit chrome */
-#MainMenu, footer {
-    visibility: hidden;
-}
-header[data-testid="stHeader"] {
-    background: transparent !important;
-}
-
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background-color: #F5F5F7 !important;
-    border-right: 1px solid #D2D2D7 !important;
-    padding-top: 1rem;
-}
-section[data-testid="stSidebar"] .stMarkdown h4 {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #86868B;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
-}
-
-/* Sidebar buttons */
-section[data-testid="stSidebar"] .stButton > button {
-    background: transparent !important;
-    border: none !important;
-    border-radius: 8px !important;
-    color: #1D1D1F !important;
-    font-size: 0.8rem !important;
-    font-weight: 400 !important;
-    text-align: left !important;
-    padding: 5px 10px !important;
-    min-height: 0 !important;
-    transition: background-color 0.2s ease !important;
-}
-section[data-testid="stSidebar"] .stButton > button:hover {
-    background-color: rgba(0, 0, 0, 0.04) !important;
-}
-section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-    background-color: #0071E3 !important;
-    color: #FFFFFF !important;
-    border-radius: 12px !important;
-    font-weight: 500 !important;
-}
-section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
-    background-color: #0077ED !important;
-}
-
-/* Sidebar captions */
-section[data-testid="stSidebar"] .stCaption {
-    color: #86868B !important;
-    font-size: 0.65rem !important;
-    margin-top: -10px !important;
-    margin-bottom: -8px !important;
-    padding-left: 10px !important;
-    line-height: 1.2 !important;
-}
-
-/* Compact sidebar spacing */
-section[data-testid="stSidebar"] .stElementContainer {
-    margin-bottom: -4px !important;
-}
-
-/* Sidebar dividers */
-section[data-testid="stSidebar"] hr {
-    border-color: #D2D2D7 !important;
-    margin: 0.75rem 0 !important;
-}
-
-/* Main area */
-.stMainBlockContainer {
-    max-width: 820px !important;
-    padding-top: 2rem !important;
-}
-.stMainBlockContainer h1 {
-    font-size: 1.75rem !important;
-    font-weight: 600 !important;
-    color: #1D1D1F !important;
-    letter-spacing: -0.02em !important;
-}
-
-/* Chat messages */
-div[data-testid="stChatMessage"] {
-    padding: 1rem 1.25rem !important;
-    border-radius: 16px !important;
-    margin-bottom: 1rem !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-/* Chat input */
-div[data-testid="stChatInput"] {
-    border-radius: 24px !important;
-    border: 1px solid #D2D2D7 !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-}
-div[data-testid="stChatInput"] textarea {
-    font-size: 0.95rem !important;
-}
-div[data-testid="stChatInput"]:focus-within {
-    border-color: #0071E3 !important;
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15) !important;
-}
-
-/* Sources card */
-.sources-card {
-    background: #FAFAFA;
-    border: 1px solid #E8E8ED;
-    border-radius: 12px;
-    padding: 12px 16px;
-    margin-top: 12px;
-    font-size: 0.8rem;
-    color: #86868B;
-    line-height: 1.6;
-}
-.sources-card .sources-title {
-    font-weight: 600;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #86868B;
-    margin-bottom: 6px;
-}
-.sources-card .source-item {
-    padding: 2px 0;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-}
-::-webkit-scrollbar-thumb {
-    background: #D2D2D7;
-    border-radius: 3px;
-}
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-</style>
-"""
-st.markdown(APPLE_CSS, unsafe_allow_html=True)
-
-# Initialize session state
-if "current_conversation_id" not in st.session_state:
-    st.session_state.current_conversation_id = None
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-
-def start_new_conversation():
-    """Start a fresh conversation."""
-    st.session_state.current_conversation_id = None
-    st.session_state.messages = []
-
-
-def load_conversation(conversation_id: int):
-    """Load an existing conversation."""
-    st.session_state.current_conversation_id = conversation_id
-    st.session_state.messages = get_conversation_messages(conversation_id)
-
-
-# ============================================
-# SIDEBAR - Conversation History
-# ============================================
-
-with st.sidebar:
-    # Header video
-    if os.path.exists("assets/header_video.mp4"):
-        st.video("assets/header_video.mp4", autoplay=True, loop=True, muted=True)
-
-    st.markdown("#### CONVERSATIONS")
-
-    # New conversation button
-    if st.button("New Conversation", use_container_width=True, type="primary"):
-        start_new_conversation()
-        st.rerun()
-    
-    st.divider()
-    
-    # List all conversations
-    conversations = get_all_conversations()
-    
-    if conversations:
-        for conv in conversations:
-            # Format the date nicely
-            try:
-                updated = datetime.fromisoformat(conv["updated_at"])
-                date_str = updated.strftime("%b %d, %I:%M %p")
-            except:
-                date_str = conv["updated_at"]
-            
-            # Create columns for conversation item and delete button
-            col1, col2 = st.columns([5, 1])
-            
-            with col1:
-                # Highlight current conversation
-                is_current = conv["id"] == st.session_state.current_conversation_id
-                label = f"{'→ ' if is_current else ''}{conv['title'][:30]}"
-                
-                if st.button(
-                    label,
-                    key=f"conv_{conv['id']}",
-                    use_container_width=True,
-                    type="primary" if is_current else "secondary"
-                ):
-                    load_conversation(conv["id"])
-                    st.rerun()
-            
-            with col2:
-                if st.button("×", key=f"del_{conv['id']}", help="Delete conversation"):
-                    delete_conversation(conv["id"])
-                    if st.session_state.current_conversation_id == conv["id"]:
-                        start_new_conversation()
-                    st.rerun()
-            
-            # Show message count and date
-            st.caption(f"  {conv['message_count']} messages • {date_str}")
-    else:
-        st.caption("No conversations yet. Start chatting!")
-    
-    st.divider()
-    
-    # About section
-    st.markdown("#### ABOUT")
-    st.markdown("""
-    Your **Super Agent Marketing Director** with knowledge from:
-    - Grow Your Law Firm Podcast
-    - Bourbon of Proof (Bob Simon)
-    - John Morgan Interviews
-    - And 500+ more episodes!
-
-    *Powered by Claude (Anthropic)*
-    """)
-
-
-# ============================================
-# MAIN CHAT AREA
-# ============================================
-
-st.title("Super Agent Marketing Director")
-st.markdown("Your AI marketing director for PI law firms — ask questions or request drafts.")
-
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Chat input
-if prompt := st.chat_input("Ask a question about running a successful law firm..."):
-    
-    # If this is a new conversation, create it in the database
-    if st.session_state.current_conversation_id is None:
-        st.session_state.current_conversation_id = create_conversation()
-        # Set title based on first message
-        title = generate_title_from_message(prompt)
-        update_conversation_title(st.session_state.current_conversation_id, title)
-    
-    # Add user message to UI and database
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    add_message(st.session_state.current_conversation_id, "user", prompt)
-    
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Generate response
-    with st.chat_message("assistant"):
-        with st.spinner("Searching knowledge base..."):
-            chunks = search_knowledge_base(prompt)
-
-        if not chunks:
-            logger.info(f"No results for query: {prompt}")
-            response = (
-                "I wasn't able to find relevant information in the knowledge base for that question. "
-                "This could mean the topic isn't covered in the podcasts and content I've been trained on.\n\n"
-                "You could try:\n"
-                "- Rephrasing your question\n"
-                "- Asking about a specific source (e.g., 'What does Bob Simon say about...')\n"
-                "- Broadening your topic\n\n"
-                "If you think this topic should be covered, let me know so we can add relevant content."
-            )
-            st.markdown(response)
-        else:
-            system_prompt, messages, sources_text = build_prompt(prompt, chunks, st.session_state.messages)
-
-            try:
-                # Stream the response word-by-word
-                with anthropic_client.messages.stream(
-                    model=CLAUDE_MODEL,
-                    max_tokens=4096,
-                    system=system_prompt,
-                    messages=messages
-                ) as stream:
-                    streamed_text = st.write_stream(stream.text_stream)
-
-                response = streamed_text + sources_text
-                st.markdown(sources_text, unsafe_allow_html=True)
-
-            except Exception as e:
-                logger.error(f"Claude API error: {e}")
-                response = f"❌ Sorry, I encountered an error generating a response: {str(e)}"
-                st.markdown(response)
-
-    # Add assistant response to UI and database
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    add_message(st.session_state.current_conversation_id, "assistant", response)
-
-    st.rerun()
+# ---------------------------------------------------------------------------
+# Streaming response generator
+# ---------------------------------------------------------------------------
+def stream_response(system_prompt: str, messages: list[dict]):
+    """Generator that yields text chunks from Claude streaming API."""
+    anthropic_client = get_clients()[1]
+    with anthropic_client.messages.stream(
+        model=CLAUDE_MODEL,
+        max_tokens=4096,
+        system=system_prompt,
+        messages=messages
+    ) as stream:
+        for text in stream.text_stream:
+            yield text
