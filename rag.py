@@ -77,6 +77,66 @@ except FileNotFoundError:
     ENTITY_MAPPINGS = {}
     SOURCE_KEYWORDS_CONFIG = {}
 
+# ---------------------------------------------------------------------------
+# Firm profile
+# ---------------------------------------------------------------------------
+PROFILE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "goff_law_profile.json")
+try:
+    with open(PROFILE_FILE, "r") as f:
+        FIRM_PROFILE = json.load(f)
+    logger.info("Loaded firm profile for %s", FIRM_PROFILE.get("firm", {}).get("name", "unknown"))
+except FileNotFoundError:
+    logger.warning("Firm profile not found at %s, using empty profile", PROFILE_FILE)
+    FIRM_PROFILE = {}
+
+# ---------------------------------------------------------------------------
+# Takeaways index
+# ---------------------------------------------------------------------------
+TAKEAWAYS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "takeaways_index.json")
+try:
+    with open(TAKEAWAYS_FILE, "r") as f:
+        TAKEAWAYS_INDEX = json.load(f)
+    logger.info("Loaded %d episode takeaways", len(TAKEAWAYS_INDEX.get("episodes", {})))
+except FileNotFoundError:
+    logger.warning("Takeaways index not found at %s", TAKEAWAYS_FILE)
+    TAKEAWAYS_INDEX = {"episodes": {}}
+
+# ---------------------------------------------------------------------------
+# Source display names (raw Pinecone source -> human-readable expert name)
+# ---------------------------------------------------------------------------
+SOURCE_DISPLAY_NAMES = {
+    "Burbon of Proof PlaylistJson (1)": "Bob Simon (Bourbon of Proof)",
+    "BurbonofProofPlaylist": "Bob Simon (Bourbon of Proof)",
+    "GrowYourLawFirmPlaylist": "Ken Hardison (Grow Your Law Firm)",
+    "podcast_Grow_Your_Law_Firm": "Ken Hardison (Grow Your Law Firm)",
+    "JohnMorganInterviews": "John Morgan (Morgan & Morgan)",
+    "GreySkyMediaPodcast": "Grey Sky Media Podcast",
+    "CEOLawyer_AliAwad_Playlist": "Ali Awad (CEO Lawyer)",
+    "YouCantTeachHungry_2024": "Mike Morse (You Can't Teach Hungry)",
+    "MaximumLawyer_Playlist": "Maximum Lawyer Podcast",
+    "PIM_Podcast_Season1": "PIM Podcast (Season 1)",
+    "PIM_Podcast_Season2": "PIM Podcast (Season 2)",
+    "PIM_Podcast_Season3": "PIM Podcast (Season 3)",
+    "ptimizing Legal Intake and Client Engagement Through Al With Colleen Joy": "Colleen Joy (Legal Intake & AI)",
+    "AttorneyAtWork_MarketingTrends2026": "Attorney at Work (Marketing Trends 2026)",
+    "LegalTechTrends2025": "Legal Tech Trends Report 2025",
+    "CMOSurvey2025": "CMO Survey 2025",
+    "TipTheScales": "Bob Simon (Tip the Scales)",
+    "ReferralMarketingClub_Q4": "Ken Hardison (Referral Marketing Club)",
+    "TrialLawyer_Spring2024": "Trial Lawyer Magazine (Spring 2024)",
+    "TrialLawyer_Summer2024": "Trial Lawyer Magazine (Summer 2024)",
+    "TrialLawyer_Fall2024": "Trial Lawyer Magazine (Fall 2024)",
+    "TrialLawyer_Spring2025": "Trial Lawyer Magazine (Spring 2025)",
+    "TrialLawyer_Summer2025": "Trial Lawyer Magazine (Summer 2025)",
+    "TrialLawyer_Fall2025": "Trial Lawyer Magazine (Fall 2025)",
+    "TrialLawyer_Winter2025": "Trial Lawyer Magazine (Winter 2025)",
+    "TrialLawyer_AList2025": "Trial Lawyer Magazine (A-List 2025)",
+    "youtube_DQZvcjcG_cI": "Charley Mann (Law Firm Marketing)",
+    "LawFirmMarketingSecrets2025": "Law Firm Marketing Secrets 2025",
+    "LawOfficeYouTubeFavorites": "Law Office YouTube Favorites",
+    "Abrams_Rd_voice_memo": "Jim Goff (Voice Memo)",
+}
+
 
 # ---------------------------------------------------------------------------
 # Environment validation
@@ -284,12 +344,84 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Takeaways search
+# ---------------------------------------------------------------------------
+def search_takeaways(query: str, limit: int = 5) -> list[dict]:
+    """Search takeaways index by keyword matching against titles, topics,
+    takeaways, action items, unique insights, and notable quotes."""
+    query_lower = query.lower()
+    query_words = {w for w in query_lower.split() if len(w) > 3}
+    results = []
+
+    for episode_id, ep in TAKEAWAYS_INDEX.get("episodes", {}).items():
+        score = 0
+
+        # Full phrase match in title (highest weight)
+        if query_lower in ep.get("title", "").lower():
+            score += 5
+
+        # Subject area match
+        if query_lower in ep.get("subject_area", "").lower():
+            score += 4
+
+        # Topic matches
+        for topic in ep.get("topics", []):
+            topic_lower = topic.lower()
+            if query_lower in topic_lower:
+                score += 3
+            elif any(w in topic_lower for w in query_words):
+                score += 1
+
+        # Takeaway content matches
+        for takeaway in ep.get("key_takeaways", []):
+            if any(w in takeaway.lower() for w in query_words):
+                score += 1
+
+        # Action item matches
+        for action in ep.get("action_items", []):
+            if any(w in action.lower() for w in query_words):
+                score += 1
+
+        # Unique insights match
+        insights = ep.get("unique_insights", "")
+        if isinstance(insights, str) and any(w in insights.lower() for w in query_words):
+            score += 1
+
+        if score > 0:
+            results.append({"episode_id": episode_id, "score": score, **ep})
+
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:limit]
+
+
+# ---------------------------------------------------------------------------
 # Prompt builder
 # ---------------------------------------------------------------------------
 def build_prompt(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> tuple:
     """Build the prompt components for Claude. Returns (system_prompt, messages, sources_text)."""
 
-    # Build context from chunks
+    # --- Extract firm profile data ---
+    firm = FIRM_PROFILE.get("firm", {})
+    team = FIRM_PROFILE.get("team", {})
+    marketing = FIRM_PROFILE.get("marketing", {})
+    agent_cfg = FIRM_PROFILE.get("super_agent", {})
+
+    firm_name = firm.get("name", "the firm")
+    firm_size = firm.get("firm_size", "PI firm")
+    location = firm.get("location", "")
+    market = firm.get("market", location)
+    owner = team.get("owner", {})
+    owner_name = owner.get("name", "the owner")
+    owner_focus = owner.get("focus", "")
+    coo = team.get("coo", {})
+    coo_name = coo.get("name", "the COO")
+    coo_focus = coo.get("focus", "")
+    practice_areas = ", ".join(firm.get("practice_areas", []))
+    channels = ", ".join(marketing.get("current_channels", []))
+    priorities = ", ".join(marketing.get("growth_priorities", []))
+    competitive = marketing.get("competitive_landscape", "")
+
+    # --- Build context from chunks with display names ---
     context_parts = []
     sources = set()
 
@@ -298,81 +430,126 @@ def build_prompt(query: str, context_chunks: list[dict], conversation_history: l
         source = metadata.get("source", "Unknown")
         episode = metadata.get("episode_title", "Unknown")
         text = metadata.get("text", "")
-        score = match.score
+        display_source = SOURCE_DISPLAY_NAMES.get(source, source)
 
-        context_parts.append(f"[Source {i} (relevance: {score:.2f}): {source} - {episode}]\n{text}")
-        sources.add(f"{source}: {episode}")
+        context_parts.append(f"[Source {i}: {display_source} - \"{episode}\"]\n{text}")
+        sources.add(f"{display_source}: {episode}")
 
     context = "\n\n---\n\n".join(context_parts)
 
-    # System prompt
-    system_prompt = """You are a SUPER AGENT MARKETING DIRECTOR for personal injury law firms. You have absorbed hundreds of podcast episodes, interviews, and educational content from the top minds in legal marketing.
+    # --- Search takeaways ---
+    takeaway_matches = search_takeaways(query, limit=5)
+    takeaways_context = ""
 
-Your knowledge base includes insights from:
-- Grow Your Law Firm podcast (Ken Hardison - PILMMA founder)
-- Bourbon of Proof podcast (Bob Simon - LA trial attorney)
-- John Morgan interviews (Morgan & Morgan - "For the People")
-- Grey Sky Media Podcast (Marketing and business development)
-- And many other legal industry experts
+    if takeaway_matches:
+        takeaway_parts = []
+        for t in takeaway_matches:
+            raw_source = t.get("source", "")
+            display_source = SOURCE_DISPLAY_NAMES.get(raw_source, raw_source)
+            parts = [f"[{display_source} - \"{t.get('title', 'Unknown')}\"]"]
+            parts.append(f"  Subject: {t.get('subject_area', 'N/A')}")
+            parts.append("  Key Takeaways:")
+            for kt in t.get("key_takeaways", []):
+                parts.append(f"    - {kt}")
+            insights = t.get("unique_insights", "")
+            if insights and insights != "None identified":
+                parts.append(f"  Unique Insight: {insights}")
+            if t.get("action_items"):
+                parts.append("  Action Items:")
+                for ai in t["action_items"]:
+                    parts.append(f"    - {ai}")
+            if t.get("notable_quotes"):
+                parts.append("  Notable Quotes:")
+                for q in t["notable_quotes"]:
+                    parts.append(f"    \"{q}\"")
+            takeaway_parts.append("\n".join(parts))
 
-YOU CAN DO MORE THAN ANSWER QUESTIONS. You are empowered to:
+        takeaways_context = "\n\n---\n\n".join(takeaway_parts)
+
+    # --- System prompt ---
+    system_prompt = f"""You are the SUPER AGENT MARKETING DIRECTOR for {firm_name}, a {firm_size} in {location}.
+
+YOUR FIRM:
+- Owner: {owner_name} — {owner_focus}
+- COO: {coo_name} — {coo_focus}
+- Practice areas: {practice_areas}
+- Current marketing: {channels}
+- Growth priorities: {priorities}
+- Competitive landscape: {competitive}
+
+YOUR KNOWLEDGE BASE:
+You have absorbed hundreds of podcast episodes and articles from the top minds in legal marketing, including:
+- Ken Hardison (PILMMA founder, Grow Your Law Firm podcast)
+- Bob Simon (trial attorney, Bourbon of Proof podcast)
+- John Morgan (Morgan & Morgan, "For the People")
+- Ali Awad (CEO Lawyer)
+- Mike Morse (You Can't Teach Hungry)
+- Trial Lawyer Magazine, PIM Podcast, Attorney at Work, and many more
+
+HOW TO CITE AND SYNTHESIZE:
+- ALWAYS attribute insights to specific experts by name: "Ken Hardison emphasizes..." or "As Bob Simon puts it..."
+- When multiple experts discuss the same topic, compare and synthesize: "Both Morgan and Hardison advocate X, while Morse takes a different approach with Y"
+- Include direct quotes from your knowledge base when they are powerful and relevant
+- Reference specific episodes or sources so {owner_name} and {coo_name} can go deeper if interested
+- When the takeaways intelligence provides action items, present them as tested recommendations from named experts
+
+HOW TO PERSONALIZE FOR {firm_name.upper()}:
+- Frame every recommendation in terms of {firm_name}'s {market} market
+- Acknowledge the competitive reality ({competitive}) and position advice accordingly
+- Consider the firm's current channels ({channels}) and growth priorities when recommending next steps
+- Think about what both {owner_name} (strategic direction) and {coo_name} (execution) need to hear
+
+WHAT YOU CAN DO:
 1. DRAFT content: emails, scripts, marketing plans, intake scripts, ad copy, social media posts
 2. CREATE strategies: full marketing campaigns, referral programs, client nurture sequences
 3. BUILD frameworks: checklists, SOPs, evaluation criteria, decision matrices
 4. ANALYZE situations: review scenarios and provide detailed recommendations
-5. THINK step-by-step through complex problems before giving answers
+5. SYNTHESIZE: connect insights across multiple experts into original, actionable guidance
 
-HOW TO WORK:
-- When asked to draft something, produce COMPLETE, USABLE content - not just outlines
-- When analyzing a situation, think through it systematically before responding
-- Draw on specific examples, quotes, and tactics from your knowledge base
-- Synthesize insights from multiple experts to create better recommendations
-- Be specific and actionable - vague advice is worthless
-
-DRAFTING GUIDELINES:
-- Match the tone to the purpose (professional for client letters, conversational for scripts)
-- Include specific details and personalization hooks
-- Make content ready to use with minimal editing
-- For scripts, include talking points and objection handling
-
-DEPTH AND QUALITY:
-- Don't just quote the context - synthesize it into original, actionable output
-- Connect advice to practical outcomes and real-world application
+QUALITY STANDARDS:
+- Be specific and actionable — vague advice is worthless
+- When asked to draft, produce COMPLETE, USABLE content, not outlines
+- Connect advice to practical outcomes for a firm of {firm_name}'s size
 - Provide the "why" behind recommendations, not just the "what"
-- When multiple sources discuss a topic, weave together the best elements
+- If the knowledge base doesn't cover a topic well, say so honestly
+- When experts disagree, present both sides with your recommendation
 
-HONESTY:
-- If the context doesn't cover a topic well, say so and offer your best reasoning
-- Distinguish between what's explicitly stated vs. your professional inference
-- When experts disagree, present both perspectives with your recommendation
+You are a senior marketing director who knows this firm inside and out. Act like it."""
 
-You are a senior marketing director who can both advise AND execute. Act like it."""
-
-    # Build messages with conversation history
+    # --- Build messages with conversation history ---
     messages = []
 
-    # Add previous conversation turns (last 10 exchanges max)
     recent_history = conversation_history[-20:]
     for msg in recent_history:
         messages.append({"role": msg["role"], "content": msg["content"]})
 
-    # Add current query with context
+    # --- User message with both context layers ---
+    takeaways_block = ""
+    if takeaways_context:
+        takeaways_block = f"""
+
+Pre-Extracted Episode Intelligence ({len(takeaway_matches)} relevant episodes):
+{takeaways_context}"""
+
     user_message = f"""Current Question: {query}
 
 Retrieved Knowledge Base Context ({len(context_chunks)} most relevant excerpts):
-{context}
+{context}{takeaways_block}
 
 Instructions:
+- ALWAYS cite specific experts by name when their insights are relevant (e.g., "Bob Simon recommends...", "Ken Hardison's approach is...")
+- When multiple experts discuss the same topic, SYNTHESIZE their perspectives — compare, contrast, and recommend
+- Reference specific episodes and quotes when they strengthen your point
+- Tailor all advice to {firm_name}'s specific situation in {market}
 - If I'm asking you to DRAFT something, produce complete, usable content
 - If I'm asking a question, provide a comprehensive answer with specific tactics
 - Draw on the conversation history above if relevant
-- Use specific examples and insights from the context
 - Structure longer responses clearly
 - If the context doesn't cover this topic, acknowledge that and provide your best professional reasoning"""
 
     messages.append({"role": "user", "content": user_message})
 
-    # Build sources footer
+    # --- Build sources footer ---
     sources_list = sorted(sources)[:5]
     sources_items = "".join(f'<div class="source-item">{s}</div>' for s in sources_list)
     sources_text = f'\n\n<div class="sources-card"><div class="sources-title">Sources consulted</div>{sources_items}</div>'

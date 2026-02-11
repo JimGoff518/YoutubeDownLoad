@@ -15,7 +15,7 @@ from database import (
     delete_conversation,
     generate_title_from_message,
 )
-from rag import search_knowledge_base, build_prompt, stream_response
+from rag import search_knowledge_base, build_prompt, stream_response, SOURCE_DISPLAY_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -196,13 +196,18 @@ def chat_stream():
             add_message(conversation_id, "assistant", error_msg)
             return
 
-        # Send sources as structured data
+        # Send sources as structured data with display names
         sources_list = []
+        seen = set()
         for match in chunks[:5]:
             meta = match.metadata
             source = meta.get("source", "Unknown")
+            display_source = SOURCE_DISPLAY_NAMES.get(source, source)
             episode = meta.get("episode_title", "Unknown")
-            sources_list.append({"source": source, "episode": episode})
+            key = f"{display_source}:{episode}"
+            if key not in seen:
+                seen.add(key)
+                sources_list.append({"source": display_source, "episode": episode})
 
         yield f"data: {json.dumps({'type': 'done', 'sources': sources_list})}\n\n"
 

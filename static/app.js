@@ -188,8 +188,34 @@ function renderMessages() {
     if (state.messages.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <p>No messages yet</p>
-                <p style="font-size: 0.85rem;">Ask a question to get started</p>
+                <h2>What can I help with?</h2>
+                <p class="empty-state-subtitle">Click any card below, or type your own question.</p>
+                <div class="prompt-grid">
+                    <button class="prompt-card" onclick="sendMessage('Draft a 30-day marketing plan for Goff Law focusing on referral development')">
+                        <strong>Marketing Plan</strong>
+                        <span>Draft a 30-day referral marketing plan</span>
+                    </button>
+                    <button class="prompt-card" onclick="sendMessage('What do the top PI marketing experts say about intake optimization? Compare their approaches.')">
+                        <strong>Intake Strategies</strong>
+                        <span>Compare expert approaches to intake</span>
+                    </button>
+                    <button class="prompt-card" onclick="sendMessage('Write a script for our intake team to convert more leads into signed cases')">
+                        <strong>Intake Script</strong>
+                        <span>Write a lead conversion script</span>
+                    </button>
+                    <button class="prompt-card" onclick="sendMessage('How should a Dallas PI firm compete against Jim Adler and Thomas J. Henry on a limited budget?')">
+                        <strong>Competitive Strategy</strong>
+                        <span>Compete against big DFW advertisers</span>
+                    </button>
+                    <button class="prompt-card" onclick="sendMessage('Create a client nurture email sequence for past clients to generate referrals')">
+                        <strong>Referral Emails</strong>
+                        <span>Draft a referral email sequence</span>
+                    </button>
+                    <button class="prompt-card" onclick="sendMessage('What are the most important AI and technology tools PI firms should adopt in 2026?')">
+                        <strong>Legal Tech 2026</strong>
+                        <span>Key AI tools for PI firms</span>
+                    </button>
+                </div>
             </div>
         `;
         return;
