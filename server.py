@@ -3,7 +3,12 @@
 import os
 import json
 import logging
+import time
 from pathlib import Path
+from urllib.parse import quote_plus
+
+import feedparser
+import requests
 from flask import Flask, render_template, request, jsonify, Response, send_file, abort, send_from_directory
 
 from database import (
@@ -15,7 +20,7 @@ from database import (
     delete_conversation,
     generate_title_from_message,
 )
-from rag import search_knowledge_base, build_prompt, stream_response, SOURCE_DISPLAY_NAMES
+from rag import search_knowledge_base, build_prompt, stream_response, SOURCE_DISPLAY_NAMES, TAKEAWAYS_INDEX
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +228,150 @@ def chat_stream():
             "Connection": "keep-alive",
         }
     )
+
+
+# ============================================
+# DASHBOARD STATS API
+# ============================================
+
+@app.route("/api/stats")
+def get_stats():
+    """Return knowledge base and conversation stats for the dashboard."""
+    episodes = TAKEAWAYS_INDEX.get("episodes", {})
+    total_episodes = TAKEAWAYS_INDEX.get("total_episodes", len(episodes))
+
+    # Count unique sources
+    sources = set()
+    for ep in episodes.values():
+        src = ep.get("source", "")
+        if src:
+            sources.add(src)
+
+    # Count unique topics
+    topics = set()
+    for ep in episodes.values():
+        for topic in ep.get("topics", []):
+            topics.add(topic.lower().strip())
+        sa = ep.get("subject_area", "")
+        if sa:
+            topics.add(sa.lower().strip())
+
+    # Count conversations
+    conversations = get_all_conversations()
+
+    return jsonify({
+        "episodes": total_episodes,
+        "sources": len(SOURCE_DISPLAY_NAMES),
+        "topics": len(topics),
+        "conversations": len(conversations),
+    })
+
+
+# ============================================
+# NEWS TICKER API
+# ============================================
+
+_news_cache = {"data": [], "fetched_at": 0}
+NEWS_CACHE_SECONDS = 1800  # 30 minutes
+
+
+def _time_ago(published_parsed):
+    """Convert a feedparser time struct to a 'time ago' string."""
+    if not published_parsed:
+        return ""
+    try:
+        pub_ts = time.mktime(published_parsed)
+        diff = time.time() - pub_ts
+        if diff < 3600:
+            mins = int(diff / 60)
+            return f"{mins}m ago"
+        elif diff < 86400:
+            hours = int(diff / 3600)
+            return f"{hours}h ago"
+        else:
+            days = int(diff / 86400)
+            return f"{days}d ago"
+    except Exception:
+        return ""
+
+
+def _fetch_google_news(query, max_items=8):
+    """Fetch headlines from Google News RSS for a query."""
+    items = []
+    try:
+        url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+        feed = feedparser.parse(url)
+        for entry in feed.entries[:max_items]:
+            items.append({
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "source": "Google News",
+                "published_ago": _time_ago(entry.get("published_parsed")),
+            })
+    except Exception as e:
+        logger.warning(f"Google News fetch failed for '{query}': {e}")
+    return items
+
+
+def _fetch_reddit(subreddit, max_items=5):
+    """Fetch top posts from a subreddit using the public JSON API."""
+    items = []
+    try:
+        url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit={max_items}"
+        headers = {"User-Agent": "BillAIMachine/1.0"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        for post in data.get("data", {}).get("children", []):
+            d = post.get("data", {})
+            if d.get("stickied"):
+                continue
+            created = d.get("created_utc", 0)
+            diff = time.time() - created
+            if diff < 3600:
+                ago = f"{int(diff/60)}m ago"
+            elif diff < 86400:
+                ago = f"{int(diff/3600)}h ago"
+            else:
+                ago = f"{int(diff/86400)}d ago"
+            items.append({
+                "title": d.get("title", ""),
+                "url": f"https://reddit.com{d.get('permalink', '')}",
+                "source": f"r/{subreddit}",
+                "published_ago": ago,
+            })
+    except Exception as e:
+        logger.warning(f"Reddit fetch failed for r/{subreddit}: {e}")
+    return items
+
+
+def _fetch_all_news():
+    """Fetch news from all sources and return combined list."""
+    items = []
+    items.extend(_fetch_google_news("personal injury law firm", max_items=6))
+    items.extend(_fetch_google_news("mass tort litigation", max_items=6))
+    items.extend(_fetch_reddit("law", max_items=4))
+    # Deduplicate by title
+    seen = set()
+    deduped = []
+    for item in items:
+        key = item["title"].lower().strip()
+        if key and key not in seen:
+            seen.add(key)
+            deduped.append(item)
+    return deduped
+
+
+@app.route("/api/news")
+def get_news():
+    """Return cached PI/mass tort news headlines."""
+    now = time.time()
+    if now - _news_cache["fetched_at"] > NEWS_CACHE_SECONDS or not _news_cache["data"]:
+        logger.info("Refreshing news cache...")
+        _news_cache["data"] = _fetch_all_news()
+        _news_cache["fetched_at"] = now
+        logger.info(f"Cached {len(_news_cache['data'])} news items")
+    return jsonify(_news_cache["data"])
 
 
 if __name__ == "__main__":

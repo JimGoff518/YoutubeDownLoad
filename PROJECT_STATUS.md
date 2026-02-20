@@ -1,6 +1,6 @@
 # Bill AI Machine - Project Status
 
-**Last updated:** February 1, 2026
+**Last updated:** February 20, 2026
 **Owner:** Goff Law (Personal Injury Law Firm, Dallas TX)
 
 ---
@@ -26,15 +26,16 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
                         Ingestion Pipeline ──► Pinecone (vectors)
                         (ingest_to_pinecone.py)     │
                                                     ▼
-                        RAG Chatbot ◄─────── Semantic Search
-                        (chat_app_with_history.py)  │
+                        RAG Pipeline ◄─────── Semantic Search
+                        (rag.py)                    │
                               │                     │
                               ▼                     │
                         Claude API ◄────────────────┘
                               │
                               ▼
-                        Streamlit Web UI
-                              │
+                        Flask Web UI ◄─── Dashboard + Chat
+                        (server.py)        (News ticker, Stats,
+                              │             Quick-action prompts)
                               ▼
                         PostgreSQL / SQLite
                         (conversation history)
@@ -67,27 +68,33 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
 
 | Feature | File | Status |
 |---------|------|--------|
-| Streamlit web UI | `chat_app_with_history.py` | Working |
-| Claude responses (streaming) | `chat_app_with_history.py` | Working |
+| Flask web UI (Dashboard + Chat) | `server.py`, `templates/`, `static/` | Working |
+| Claude responses (streaming SSE) | `rag.py`, `server.py` | Working |
 | Conversation history (PostgreSQL/SQLite) | `database.py` | Working |
-| Query expansion (entity mappings) | `chat_app_with_history.py` | Working |
-| Score threshold filtering (>0.3) | `chat_app_with_history.py` | Working |
-| Cohere reranking (top 25 → top 10) | `chat_app_with_history.py` | Working |
-| Source-specific metadata filtering ($in) | `chat_app_with_history.py` | Working |
+| Query expansion (entity mappings) | `rag.py` | Working |
+| Score threshold filtering (>0.3) | `rag.py` | Working |
+| Cohere reranking (top 25 → top 10) | `rag.py` | Working |
+| Source-specific metadata filtering ($in) | `rag.py` | Working |
 | Dynamic entity mappings (JSON config) | `entity_mappings.json` | Working |
-| Per-query retrieval logging (JSONL) | `chat_app_with_history.py` | New |
-| Retrieval evaluation framework | `eval_retrieval.py` | New |
-| Apple-inspired UI/CSS overhaul | `chat_app_with_history.py` | New |
-| Streamlit theme config | `.streamlit/config.toml` | New |
+| Per-query retrieval logging (JSONL) | `rag.py` | Working |
+| Retrieval evaluation framework | `eval_retrieval.py` | Working |
+| Takeaways context enrichment | `rag.py` | Working |
+| Episode takeaways extraction | `extract_takeaways.py` | Working |
+| Dashboard stats API | `server.py` `/api/stats` | **New** |
+| News ticker (Google News + Reddit) | `server.py` `/api/news` | **New** |
+| Quick-action prompt cards | `templates/index.html` | **New** |
 
 ### 4. Infrastructure (Working)
 
 | Feature | File | Status |
 |---------|------|--------|
-| Flask file server | `server.py` | Working |
+| Flask web app + API | `server.py` | Working |
 | Docker deployment | `Dockerfile` | Working |
 | Railway startup script | `start.sh` | Working |
 | Dev container (Codespaces) | `.devcontainer/` | Working |
+| **Railway Production** | — | **Live** |
+
+**Production URL:** `https://gofflawsuperagent.up.railway.app/`
 
 ### 5. Helper Scripts
 
@@ -141,21 +148,21 @@ All keys go in `.env` file.
 
 | Setting | Value | Location |
 |---------|-------|----------|
-| Embedding model | text-embedding-3-small (1024 dims) | `chat_app_with_history.py` |
-| Chat model | claude-sonnet-4-20250514 | `chat_app_with_history.py` |
-| Rerank model | rerank-v3.5 | `chat_app_with_history.py` |
-| Pinecone index | legal-docs | `chat_app_with_history.py` |
+| Embedding model | text-embedding-3-small (1024 dims) | `rag.py` |
+| Chat model | claude-sonnet-4-20250514 | `rag.py` |
+| Rerank model | rerank-v3.5 | `rag.py` |
+| Pinecone index | legal-docs | `rag.py` |
 | Chunk size | 800 tokens (~3200 chars) | `ingest_to_pinecone.py` |
 | Chunk overlap | 100 tokens (~400 chars) | `ingest_to_pinecone.py` |
-| Retrieval top-k | 25 (then reranked to 10) | `chat_app_with_history.py` |
-| Min score threshold | 0.3 | `chat_app_with_history.py` |
-| Conversation history | Last 20 messages (10 exchanges) | `chat_app_with_history.py` |
+| Retrieval top-k | 25 (then reranked to 10) | `rag.py` |
+| Min score threshold | 0.3 | `rag.py` |
+| Conversation history | Last 20 messages (10 exchanges) | `rag.py` |
 
 ---
 
 ## Content Sources Ingested
 
-Entity mappings are configured in `entity_mappings.json`. Pinecone index: **10,355 vectors** (as of Jan 31, 2026).
+Entity mappings are configured in `entity_mappings.json`. Pinecone index: **14,103 vectors**. Takeaways: **1,167 episodes** extracted (complete as of Feb 20, 2026).
 
 | Source | Type | Pinecone source name | Entity mapped |
 |--------|------|---------------------|---------------|
@@ -175,16 +182,19 @@ Entity mappings are configured in `entity_mappings.json`. Pinecone index: **10,3
 | CMO Survey 2025 (LMA-ATL) | PDF | `CMOSurvey2025` | Yes |
 | Attorney at Work — Marketing Trends 2026 | Web | `AttorneyAtWork_MarketingTrends2026` | Yes |
 | Trial Lawyer Magazine (8 issues, 2024-2025) | PDF | `TrialLawyer_Spring2024` thru `TrialLawyer_AList2025` | Yes |
+| Tip the Scales (Bob Simon) | Podcast | `TipTheScales` | Yes |
+| Referral Marketing Club (Ken Hardison) | Video | `ReferralMarketingClub_Q4` | Yes |
 | PreLitGuru Sessions | YouTube | `PreLitGuru_Sessions` | **Removed** |
 
 ---
 
 ## How to Run
 
-### Chatbot (main app)
+### Chatbot (main app — Flask)
 ```bash
 pip install -r requirements.txt
-streamlit run chat_app_with_history.py
+python server.py
+# Open http://127.0.0.1:8080
 ```
 
 ### Extract content
@@ -211,6 +221,10 @@ docker run -p 8080:8080 --env-file .env bill-ai-machine
 
 ## Recent Changes
 
+- **Feb 19-20, 2026 (session 12):** Dashboard Command Center UI — Built a two-view Marketing Command Center (Dashboard + Chat) replacing the old Streamlit-only interface. Dashboard features: stats cards (episodes, sources, topics, conversations), 6 quick-action prompt cards for Chelsea (Weekly Briefing, Content Calendar, Competitive Intel, Intake Optimization, SEO Strategy, Draft SOP). Added PI/mass tort news ticker in sidebar pulling from Google News RSS and Reddit, cached for 30 minutes. New API endpoints: `/api/stats` (knowledge base metrics from takeaways_index.json) and `/api/news` (aggregated news feed). Tab navigation switches between Dashboard and Chat views (SPA-style, no page reloads). Conversations list shows in sidebar only when in Chat view. Added `feedparser==6.0.12` dependency. Fixed UTF-8 encoding bug in `rag.py` for takeaways_index.json. Completed takeaways extraction: 871 → 1,167 episodes (Phase 7.2 complete). Design doc: `docs/plans/2026-02-19-dashboard-command-center-design.md`.
+- **Feb 10, 2026 (session 11):** Phase 7.2 Takeaways Integration — Injected takeaways into chatbot context: added startup loading of `takeaways_index.json` with dual lookup structures (`TAKEAWAYS_BY_SOURCE_TITLE` for episode matching, `TAKEAWAYS_BY_TOPIC` for keyword matching). Built `get_relevant_takeaways()` with two strategies: (1) episode-matched via Pinecone chunk metadata, (2) topic-matched via query keyword scan against inverted index. Added `format_takeaways_for_prompt()` to inject up to 5 episode takeaways (~600-1,200 tokens) into each query. Updated `build_prompt()` and system prompt HOW TO WORK section. Kicked off full extraction run — processing all remaining episodes across 32 JSON files. Extraction is resume-safe (saves after each episode). Progress: 246+ episodes extracted and growing (up from 41). Extraction still running for large files (Grow Your Law Firm ~445 eps, PIM Podcast ~339 eps).
+- **Feb 8, 2026 (session 10):** Phase 2 Complete + Phase 7 Started — Finished Phase 2 (Retrieval Quality): documented final parameter values (TOP_K=25, RERANK_TOP_K=10, MIN_SCORE_THRESHOLD=0.3) based on eval results (6/6 source accuracy, 4/4 off-topic filtering, 0 false positives). Started Phase 7 (Super Agent): created `goff_law_profile.json` with firm-specific context (Goff Law, Dallas, DFW market, practice areas, team info for Jim and Chelsea). Updated system prompt in `chat_app_with_history.py` to inject firm profile dynamically. Built key takeaways extraction pipeline (`extract_takeaways.py`) that uses Claude to extract structured metadata from episodes: key takeaways, subject area, topics, unique insights, action items, notable quotes. Tested on 41 episodes from Bourbon of Proof — all extracted successfully. Takeaways searchable via CLI (`--search`, `--category`, `--summary`). Stored in `takeaways_index.json`.
+- **Feb 7, 2026 (session 9):** Railway deployment complete + content expansion — Super Agent Marketing Director is now live at `https://gofflawsuperagent.up.railway.app/`. Fixed environment variable typo (ANTHR0PIC_API_KEY → ANTHROPIC_API_KEY). Verified full functionality: streaming SSE, RAG pipeline (Pinecone → Cohere → Claude), PostgreSQL conversation history. Phase 5.7 (Hosting Migration) marked complete. Also processed remaining audio/video: 24 new Tip the Scales episodes (103-151, 1,308 chunks) and Referral Marketing Club Q4 session (23 chunks). Pinecone now at 14,103 vectors. Updated entity mappings for new sources.
 - **Feb 1, 2026 (session 8):** Status check & continued transcription — Reviewed project status and roadmap. Resumed PIM podcast batch transcription (Season 2 remaining 32 episodes completed, Season 3 in progress). Attempted MaxLawCon 2022 zip extraction from Box — file was empty/corrupt (202 bytes), needs re-download. Created `COMMANDS.md` cheat sheet for MARVIN CLI commands.
 - **Jan 31, 2026 (session 7):** New content ingestion — Built PDF extraction (`extract_pdf.py`), web article extraction (`extract_web_article.py`), YouTube wrapper (`extract_youtube.py`), and Trial Lawyer magazine article classifier (`extract_trial_lawyer.py`). Ingested 14 new sources: 3 YouTube videos (law firm marketing 2025), 2 industry report PDFs (Legal Tech Trends, CMO Survey), 1 web article (Attorney at Work 2026 trends), 8 Trial Lawyer magazine issues (marketing articles only, LLM-filtered). 238 new chunks added to Pinecone (10,355 total vectors). Updated entity mappings for all new sources. Added pdfplumber, beautifulsoup4, lxml, requests to requirements.txt.
 - **Jan 31, 2026 (session 6):** Batch transcription round 2 — Discovered Box zip downloads contain significantly more episodes than originally processed (S1: 92 vs 43, S2: 97 vs 28, S3: 150 vs 4). Extracted 6 zip files to temp directory. Started transcription of 264 missing episodes across all 3 PIM seasons. Transcription running via Whisper API (resume-safe). Streamlit Community Cloud account confirmed suspended/app deleted — hosting migration needed. Updated entity mappings for 9 previously unmapped sources.
@@ -246,9 +260,12 @@ Bill AI Machine/
 │   │   └── video_processor.py
 │   └── storage/
 │       └── json_writer.py
-├── .streamlit/config.toml        # Streamlit theme (Apple-inspired colors)
-├── chat_app_with_history.py      # Main RAG chatbot (Streamlit)
-├── chat_app.py                   # Basic chatbot (no history)
+├── server.py                     # Flask web app (Dashboard + Chat API)
+├── rag.py                        # RAG pipeline (search, rerank, prompt, stream)
+├── templates/index.html          # HTML template (Dashboard + Chat views)
+├── static/style.css              # CSS (Apple-inspired, responsive)
+├── static/app.js                 # Client-side JS (views, stats, news, chat)
+├── chat_app_with_history.py      # Legacy Streamlit chatbot (deprecated)
 ├── database.py                   # Conversation persistence
 ├── ingest_to_pinecone.py         # Transcript → Pinecone pipeline
 ├── entity_mappings.json          # Query expansion & source filter config
@@ -263,8 +280,11 @@ Bill AI Machine/
 ├── eval_retrieval.py             # Retrieval quality evaluation script
 ├── test_questions.json           # 25 test queries for eval framework
 ├── eval_results.json             # Latest eval run output
+├── goff_law_profile.json         # Firm-specific context for Super Agent (Phase 7)
+├── extract_takeaways.py          # Episode takeaways extraction pipeline (Phase 7)
+├── takeaways_index.json          # Structured takeaways index (searchable)
 ├── DOCUMENTATION.md              # Technical reference (extraction APIs & models)
-├── server.py                     # Flask file server
+├── docs/plans/                   # Design documents
 ├── Dockerfile                    # Container definition
 ├── start.sh                      # Container startup
 ├── requirements.txt              # Python dependencies

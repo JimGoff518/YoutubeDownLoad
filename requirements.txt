@@ -47,6 +47,9 @@ beautifulsoup4==4.12.3
 lxml==5.3.0
 requests==2.32.3
 
+# News feed parsing
+feedparser==6.0.12
+
 # Testing
 pytest==8.3.4
 pytest-cov==6.0.0

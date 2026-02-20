@@ -1,6 +1,6 @@
 // =============================================================================
-// app.js - Client-side JavaScript for the Bill AI Machine chatbot
-// Manages state, API calls, SSE streaming, and DOM rendering
+// app.js - Bill AI Machine: Marketing Command Center
+// Dashboard + Chat with news ticker, stats, and quick-action prompts
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -18,22 +18,174 @@ const state = {
     currentConversationId: null,
     conversations: [],
     messages: [],
-    isStreaming: false
+    isStreaming: false,
+    currentView: 'dashboard' // 'dashboard' or 'chat'
 };
 
-// Restore last conversation from localStorage on page load
+// -----------------------------------------------------------------------------
+// Initialization
+// -----------------------------------------------------------------------------
 (function init() {
     const saved = localStorage.getItem('currentConversationId');
     if (saved) state.currentConversationId = parseInt(saved);
+
+    // Set up tab navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchView(btn.dataset.view));
+    });
+
+    // Set up quick-action cards
+    document.querySelectorAll('.action-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const prompt = card.dataset.prompt;
+            if (prompt) {
+                switchView('chat');
+                startNewConversation();
+                // Small delay to let the view switch render
+                setTimeout(() => sendMessage(prompt), 100);
+            }
+        });
+    });
+
+    // Form submit
+    document.getElementById('chat-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const input = document.getElementById('chat-input');
+        const query = input.value.trim();
+        if (query) {
+            input.value = '';
+            input.style.height = 'auto';
+            sendMessage(query);
+        }
+    });
+
+    // New conversation button
+    document.getElementById('new-conversation-btn').addEventListener('click', startNewConversation);
+
+    // Textarea auto-resize and Enter-to-send
+    const chatInput = document.getElementById('chat-input');
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+    });
+
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Load initial data
     fetchConversations().then(() => {
         if (state.currentConversationId) {
             loadConversation(state.currentConversationId);
         }
     });
+    fetchStats();
+    fetchNews();
+
+    // Refresh news every 30 minutes
+    setInterval(fetchNews, 30 * 60 * 1000);
 })();
 
+
 // -----------------------------------------------------------------------------
-// API Helpers
+// View Switching
+// -----------------------------------------------------------------------------
+
+function switchView(viewName) {
+    state.currentView = viewName;
+
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === viewName);
+    });
+
+    // Update views
+    document.querySelectorAll('.view').forEach(view => {
+        view.classList.remove('active');
+    });
+    document.getElementById(`${viewName}-view`).classList.add('active');
+
+    // Show/hide conversations section in sidebar
+    const convSection = document.getElementById('conversations-section');
+    convSection.style.display = viewName === 'chat' ? 'block' : 'none';
+}
+
+
+// -----------------------------------------------------------------------------
+// Dashboard: Stats
+// -----------------------------------------------------------------------------
+
+async function fetchStats() {
+    try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        animateNumber('stat-episodes', data.episodes);
+        animateNumber('stat-sources', data.sources);
+        animateNumber('stat-topics', data.topics);
+        animateNumber('stat-conversations', data.conversations);
+    } catch (e) {
+        console.error('Failed to fetch stats:', e);
+    }
+}
+
+function animateNumber(elementId, target) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const duration = 600;
+    const start = 0;
+    const startTime = performance.now();
+
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(start + (target - start) * eased);
+        el.textContent = current.toLocaleString();
+
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+
+    requestAnimationFrame(update);
+}
+
+
+// -----------------------------------------------------------------------------
+// Sidebar: News Ticker
+// -----------------------------------------------------------------------------
+
+async function fetchNews() {
+    const container = document.getElementById('news-ticker');
+    try {
+        const res = await fetch('/api/news');
+        const items = await res.json();
+
+        if (items.length === 0) {
+            container.innerHTML = '<div class="news-loading">No news available</div>';
+            return;
+        }
+
+        container.innerHTML = items.map(item => `
+            <a class="news-item" href="${escapeAttr(item.url)}" target="_blank" rel="noopener">
+                <div class="news-title">${escapeHtml(item.title)}</div>
+                <div class="news-meta">${escapeHtml(item.source)} ${item.published_ago ? '&bull; ' + escapeHtml(item.published_ago) : ''}</div>
+            </a>
+        `).join('');
+    } catch (e) {
+        console.error('Failed to fetch news:', e);
+        container.innerHTML = '<div class="news-loading">Unable to load news</div>';
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+// Conversation API Helpers
 // -----------------------------------------------------------------------------
 
 async function fetchConversations() {
@@ -68,6 +220,7 @@ function startNewConversation() {
     renderSidebar();
 }
 
+
 // -----------------------------------------------------------------------------
 // SSE Streaming (POST-based using fetch + getReader)
 // -----------------------------------------------------------------------------
@@ -76,6 +229,11 @@ async function sendMessage(query) {
     if (state.isStreaming || !query.trim()) return;
     state.isStreaming = true;
     updateSendButton();
+
+    // Make sure we're in chat view
+    if (state.currentView !== 'chat') {
+        switchView('chat');
+    }
 
     // Add user message to UI immediately
     state.messages.push({ role: 'user', content: query });
@@ -151,6 +309,7 @@ async function sendMessage(query) {
     updateSendButton();
 }
 
+
 // -----------------------------------------------------------------------------
 // DOM Rendering Functions
 // -----------------------------------------------------------------------------
@@ -189,33 +348,7 @@ function renderMessages() {
         container.innerHTML = `
             <div class="empty-state">
                 <h2>What can I help with?</h2>
-                <p class="empty-state-subtitle">Click any card below, or type your own question.</p>
-                <div class="prompt-grid">
-                    <button class="prompt-card" onclick="sendMessage('Draft a 30-day marketing plan for Goff Law focusing on referral development')">
-                        <strong>Marketing Plan</strong>
-                        <span>Draft a 30-day referral marketing plan</span>
-                    </button>
-                    <button class="prompt-card" onclick="sendMessage('What do the top PI marketing experts say about intake optimization? Compare their approaches.')">
-                        <strong>Intake Strategies</strong>
-                        <span>Compare expert approaches to intake</span>
-                    </button>
-                    <button class="prompt-card" onclick="sendMessage('Write a script for our intake team to convert more leads into signed cases')">
-                        <strong>Intake Script</strong>
-                        <span>Write a lead conversion script</span>
-                    </button>
-                    <button class="prompt-card" onclick="sendMessage('How should a Dallas PI firm compete against Jim Adler and Thomas J. Henry on a limited budget?')">
-                        <strong>Competitive Strategy</strong>
-                        <span>Compete against big DFW advertisers</span>
-                    </button>
-                    <button class="prompt-card" onclick="sendMessage('Create a client nurture email sequence for past clients to generate referrals')">
-                        <strong>Referral Emails</strong>
-                        <span>Draft a referral email sequence</span>
-                    </button>
-                    <button class="prompt-card" onclick="sendMessage('What are the most important AI and technology tools PI firms should adopt in 2026?')">
-                        <strong>Legal Tech 2026</strong>
-                        <span>Key AI tools for PI firms</span>
-                    </button>
-                </div>
+                <p class="empty-state-subtitle">Type your question below, or go to the Dashboard for quick actions.</p>
             </div>
         `;
         return;
@@ -282,6 +415,7 @@ function showLoadingIndicator() {
     return div;
 }
 
+
 // -----------------------------------------------------------------------------
 // Utility Functions
 // -----------------------------------------------------------------------------
@@ -295,6 +429,10 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function escapeAttr(text) {
+    return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function formatDate(dateStr) {
@@ -312,36 +450,3 @@ function updateSendButton() {
     const btn = document.getElementById('send-btn');
     btn.disabled = state.isStreaming;
 }
-
-// -----------------------------------------------------------------------------
-// Event Listeners
-// -----------------------------------------------------------------------------
-
-// Form submit
-document.getElementById('chat-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const input = document.getElementById('chat-input');
-    const query = input.value.trim();
-    if (query) {
-        input.value = '';
-        input.style.height = 'auto';
-        sendMessage(query);
-    }
-});
-
-// New conversation button
-document.getElementById('new-conversation-btn').addEventListener('click', startNewConversation);
-
-// Textarea auto-resize and Enter-to-send
-const chatInput = document.getElementById('chat-input');
-chatInput.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
-});
-
-chatInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        document.getElementById('chat-form').dispatchEvent(new Event('submit'));
-    }
-});

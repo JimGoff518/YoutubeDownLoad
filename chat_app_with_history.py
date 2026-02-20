@@ -81,6 +81,42 @@ except FileNotFoundError:
     ENTITY_MAPPINGS = {}
     SOURCE_KEYWORDS_CONFIG = {}
 
+# Load firm profile for Super Agent persona
+FIRM_PROFILE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "goff_law_profile.json")
+FIRM_PROFILE = {}
+try:
+    with open(FIRM_PROFILE_FILE, "r") as f:
+        FIRM_PROFILE = json.load(f)
+    logger.info(f"Loaded firm profile for {FIRM_PROFILE.get('firm', {}).get('name', 'Unknown')}")
+except FileNotFoundError:
+    logger.warning(f"Firm profile not found at {FIRM_PROFILE_FILE}, using generic persona")
+
+# Load takeaways index for context enrichment
+TAKEAWAYS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "takeaways_index.json")
+TAKEAWAYS_INDEX = {}
+TAKEAWAYS_BY_SOURCE_TITLE = {}  # (source, title) -> episode_data
+TAKEAWAYS_BY_TOPIC = {}         # topic_keyword -> [episode_data, ...]
+
+try:
+    with open(TAKEAWAYS_FILE, "r", encoding="utf-8") as f:
+        TAKEAWAYS_INDEX = json.load(f)
+
+    for ep_id, ep in TAKEAWAYS_INDEX.get("episodes", {}).items():
+        key = (ep.get("source", ""), ep.get("title", ""))
+        TAKEAWAYS_BY_SOURCE_TITLE[key] = ep
+
+    for ep_id, ep in TAKEAWAYS_INDEX.get("episodes", {}).items():
+        for term in ep.get("topics", []) + [ep.get("subject_area", "")]:
+            term_lower = term.lower().strip()
+            if term_lower:
+                if term_lower not in TAKEAWAYS_BY_TOPIC:
+                    TAKEAWAYS_BY_TOPIC[term_lower] = []
+                TAKEAWAYS_BY_TOPIC[term_lower].append(ep)
+
+    logger.info(f"Loaded {len(TAKEAWAYS_BY_SOURCE_TITLE)} episode takeaways, {len(TAKEAWAYS_BY_TOPIC)} topic entries")
+except FileNotFoundError:
+    logger.warning(f"Takeaways index not found at {TAKEAWAYS_FILE}, takeaway enrichment disabled")
+
 
 def validate_environment() -> bool:
     """Validate required environment variables are set."""
@@ -262,7 +298,68 @@ def search_knowledge_base(query: str, top_k: int = TOP_K) -> list[dict]:
     return reranked
 
 
-def build_prompt(query: str, context_chunks: list[dict], conversation_history: list[dict]) -> tuple:
+def get_relevant_takeaways(query: str, context_chunks: list, max_takeaways: int = 5) -> list[dict]:
+    """Retrieve relevant episode takeaways via episode matching and topic keyword search."""
+    if not TAKEAWAYS_BY_SOURCE_TITLE:
+        return []
+
+    matched = {}  # (source, title) -> {"data": ..., "priority": ...}
+
+    # Strategy 1: Episode-matched (primary) — look up chunks' episodes in takeaways index
+    for chunk in context_chunks:
+        metadata = chunk.metadata
+        source = metadata.get("source", "")
+        episode_title = metadata.get("episode_title", "")
+        key = (source, episode_title)
+
+        if key in TAKEAWAYS_BY_SOURCE_TITLE and key not in matched:
+            matched[key] = {"data": TAKEAWAYS_BY_SOURCE_TITLE[key], "priority": 0}
+
+    # Strategy 2: Topic-matched (supplementary) — keyword search against topics index
+    if len(matched) < max_takeaways:
+        query_words = query.lower().split()
+        query_phrases = set(query_words)
+        for i in range(len(query_words) - 1):
+            query_phrases.add(f"{query_words[i]} {query_words[i+1]}")
+
+        topic_scores = {}
+        for phrase in query_phrases:
+            for topic_key, episodes in TAKEAWAYS_BY_TOPIC.items():
+                if phrase in topic_key or topic_key in phrase:
+                    for ep in episodes:
+                        key = (ep.get("source", ""), ep.get("title", ""))
+                        if key not in matched:
+                            topic_scores[key] = topic_scores.get(key, 0) + 1
+
+        for key, score in sorted(topic_scores.items(), key=lambda x: -x[1]):
+            if len(matched) >= max_takeaways:
+                break
+            matched[key] = {"data": TAKEAWAYS_BY_SOURCE_TITLE[key], "priority": 1}
+
+    results = sorted(matched.values(), key=lambda x: x["priority"])
+    return [r["data"] for r in results[:max_takeaways]]
+
+
+def format_takeaways_for_prompt(takeaways: list[dict]) -> str:
+    """Format takeaways into a concise context section for prompt injection."""
+    if not takeaways:
+        return ""
+
+    parts = []
+    for ep in takeaways:
+        section = f"[{ep.get('source', 'Unknown')} - {ep.get('title', 'Unknown')}]\n"
+        section += f"Category: {ep.get('subject_area', 'N/A')}\n"
+        for t in ep.get("key_takeaways", []):
+            section += f"- {t}\n"
+        actions = ep.get("action_items", [])
+        if actions:
+            section += "Actions: " + "; ".join(actions) + "\n"
+        parts.append(section.strip())
+
+    return f"Episode Takeaways ({len(takeaways)} related episodes):\n\n" + "\n\n".join(parts)
+
+
+def build_prompt(query: str, context_chunks: list[dict], conversation_history: list[dict], takeaways: list[dict] = None) -> tuple:
     """Build the prompt components for Claude. Returns (system_prompt, messages, sources_text)."""
 
     # Build context from chunks
@@ -281,17 +378,45 @@ def build_prompt(query: str, context_chunks: list[dict], conversation_history: l
 
     context = "\n\n---\n\n".join(context_parts)
 
-    # System prompt
-    system_prompt = """You are a SUPER AGENT MARKETING DIRECTOR for personal injury law firms. You have absorbed hundreds of podcast episodes, interviews, and educational content from the top minds in legal marketing.
+    # Build firm-specific system prompt
+    firm = FIRM_PROFILE.get("firm", {})
+    team = FIRM_PROFILE.get("team", {})
+    marketing = FIRM_PROFILE.get("marketing", {})
+    agent_config = FIRM_PROFILE.get("super_agent", {})
 
-Your knowledge base includes insights from:
-- Grow Your Law Firm podcast (Ken Hardison - PILMMA founder)
-- Bourbon of Proof podcast (Bob Simon - LA trial attorney)
-- John Morgan interviews (Morgan & Morgan - "For the People")
-- Grey Sky Media Podcast (Marketing and business development)
-- And many other legal industry experts
+    firm_name = firm.get("name", "your law firm")
+    firm_location = firm.get("location", "")
+    firm_market = firm.get("market", "your market")
+    practice_areas = ", ".join(firm.get("practice_areas", ["Personal Injury"])[:3])
+    owner_name = team.get("owner", {}).get("name", "the owner")
+    coo_name = team.get("coo", {}).get("name", "the COO")
+    current_channels = ", ".join(marketing.get("current_channels", []))
+    growth_priorities = marketing.get("growth_priorities", [])
+    competitive_landscape = marketing.get("competitive_landscape", "")
 
-YOU CAN DO MORE THAN ANSWER QUESTIONS. You are empowered to:
+    system_prompt = f"""You are the SUPER AGENT MARKETING DIRECTOR for {firm_name}, a personal injury law firm in {firm_location}.
+
+YOUR FIRM:
+- Location: {firm_location} ({firm_market})
+- Practice Areas: {practice_areas}
+- Current Marketing: {current_channels}
+- Competitive Landscape: {competitive_landscape}
+- Key People: {owner_name} (Owner), {coo_name} (COO who executes marketing strategy)
+
+YOUR MISSION: Make {firm_name} the best-marketed PI firm in Dallas by applying insights from the top PI marketing minds to the firm's specific situation.
+
+GROWTH PRIORITIES:
+{chr(10).join(f"- {p}" for p in growth_priorities)}
+
+YOUR KNOWLEDGE BASE includes insights from 14,000+ chunks across:
+- Ken Hardison (PILMMA founder, Grow Your Law Firm podcast)
+- Bob Simon (Bourbon of Proof, Tip the Scales)
+- John Morgan (Morgan & Morgan - "For the People")
+- Mike Morse (You Can't Teach Hungry)
+- Ali Awad (CEO Lawyer)
+- Trial Lawyer Magazine, industry reports, and 15+ other expert sources
+
+YOU ARE EMPOWERED TO:
 1. DRAFT content: emails, scripts, marketing plans, intake scripts, ad copy, social media posts
 2. CREATE strategies: full marketing campaigns, referral programs, client nurture sequences
 3. BUILD frameworks: checklists, SOPs, evaluation criteria, decision matrices
@@ -299,21 +424,23 @@ YOU CAN DO MORE THAN ANSWER QUESTIONS. You are empowered to:
 5. THINK step-by-step through complex problems before giving answers
 
 HOW TO WORK:
-- When asked to draft something, produce COMPLETE, USABLE content - not just outlines
-- When analyzing a situation, think through it systematically before responding
+- Always think about how advice applies to {firm_name}'s specific situation in {firm_market}
+- When drafting, produce COMPLETE, USABLE content - not just outlines
 - Draw on specific examples, quotes, and tactics from your knowledge base
 - Synthesize insights from multiple experts to create better recommendations
 - Be specific and actionable - vague advice is worthless
+- Consider {firm_name}'s competitive position against large DFW advertisers
+- Use Episode Takeaways to identify patterns and synthesize insights across multiple sources
 
 DRAFTING GUIDELINES:
 - Match the tone to the purpose (professional for client letters, conversational for scripts)
-- Include specific details and personalization hooks
+- Include specific details and personalization hooks for {firm_name}
 - Make content ready to use with minimal editing
 - For scripts, include talking points and objection handling
 
 DEPTH AND QUALITY:
 - Don't just quote the context - synthesize it into original, actionable output
-- Connect advice to practical outcomes and real-world application
+- Connect advice to practical outcomes for {firm_name}
 - Provide the "why" behind recommendations, not just the "what"
 - When multiple sources discuss a topic, weave together the best elements
 
@@ -322,7 +449,7 @@ HONESTY:
 - Distinguish between what's explicitly stated vs. your professional inference
 - When experts disagree, present both perspectives with your recommendation
 
-You are a senior marketing director who can both advise AND execute. Act like it."""
+You are {firm_name}'s senior marketing director who can both advise AND execute. Act like it."""
 
     # Build messages with conversation history
     messages = []
@@ -332,17 +459,23 @@ You are a senior marketing director who can both advise AND execute. Act like it
     for msg in recent_history:
         messages.append({"role": msg["role"], "content": msg["content"]})
 
+    # Format takeaways if available
+    takeaways_text = ""
+    if takeaways:
+        takeaways_text = "\n\n" + format_takeaways_for_prompt(takeaways) + "\n"
+
     # Add current query with context
     user_message = f"""Current Question: {query}
 
 Retrieved Knowledge Base Context ({len(context_chunks)} most relevant excerpts):
 {context}
-
+{takeaways_text}
 Instructions:
 - If I'm asking you to DRAFT something, produce complete, usable content
 - If I'm asking a question, provide a comprehensive answer with specific tactics
 - Draw on the conversation history above if relevant
 - Use specific examples and insights from the context
+- Use the Episode Takeaways to synthesize broader patterns across episodes
 - Structure longer responses clearly
 - If the context doesn't cover this topic, acknowledge that and provide your best professional reasoning"""
 
@@ -653,7 +786,8 @@ if prompt := st.chat_input("Ask a question about running a successful law firm..
             )
             st.markdown(response)
         else:
-            system_prompt, messages, sources_text = build_prompt(prompt, chunks, st.session_state.messages)
+            takeaways = get_relevant_takeaways(prompt, chunks)
+            system_prompt, messages, sources_text = build_prompt(prompt, chunks, st.session_state.messages, takeaways)
 
             try:
                 # Stream the response word-by-word

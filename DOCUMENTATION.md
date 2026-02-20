@@ -527,8 +527,173 @@ Standalone script that runs test queries through the full retrieval pipeline (ex
 
 ### Retrieval Logging
 
-Every chatbot query logs metrics to `retrieval_log.jsonl` via `log_retrieval_metrics()` in `chat_app_with_history.py`. Fields: timestamp, query, source_filter, pinecone counts/scores, threshold filter count, rerank count, Cohere scores.
+Every chatbot query logs metrics to `retrieval_log.jsonl` via `log_retrieval_metrics()` in `rag.py`. Fields: timestamp, query, source_filter, pinecone counts/scores, threshold filter count, rerank count, Cohere scores.
 
 ### Source Filtering
 
 `entity_mappings.json` `source_filters` maps keywords to lists of Pinecone source values. The Pinecone filter uses `$in` to match any of the source values. Source values in Pinecone include: `Burbon of Proof PlaylistJson (1)`, `BurbonofProofPlaylist`, `GrowYourLawFirmPlaylist`, `podcast_Grow_Your_Law_Firm`, `JohnMorganInterviews`, `GreySkyMediaPodcast`, `CEOLawyer_AliAwad_Playlist`, `LawOfficeYoutubeFavorites`, `MaximumLawyer_Playlist`, `YouCantTeachHungry_2024`.
+
+---
+
+## Super Agent Configuration (Phase 7)
+
+### goff_law_profile.json
+
+Firm-specific context injected into the Super Agent system prompt. The chatbot loads this file on startup and uses it to personalize all responses.
+
+```json
+{
+  "firm": {
+    "name": "Goff Law",
+    "location": "Dallas, TX",
+    "market": "Dallas-Fort Worth metroplex",
+    "practice_areas": ["Personal Injury", "Car Accidents", "Truck Accidents", ...]
+  },
+  "team": {
+    "owner": { "name": "Jim", "role": "Firm Owner / Managing Attorney" },
+    "coo": { "name": "Chelsea", "role": "Chief Operating Officer" }
+  },
+  "marketing": {
+    "current_channels": ["Google (organic + LSAs)", "Referrals", "Social media"],
+    "growth_priorities": ["Increase case volume", "Improve intake conversion", ...],
+    "competitive_landscape": "Competing against large PI advertisers (Jim Adler, etc.)"
+  },
+  "super_agent": {
+    "role": "Director of Marketing",
+    "mission": "Make Goff Law the best-marketed PI firm in Dallas..."
+  }
+}
+```
+
+The system prompt in `rag.py` references `FIRM_PROFILE` to include firm name, location, team members, growth priorities, and competitive context in every response.
+
+---
+
+## Key Takeaways Extraction (Phase 7)
+
+### extract_takeaways.py
+
+Processes episode transcripts using Claude to extract structured metadata. Run from the command line.
+
+**Usage:**
+```bash
+# Extract takeaways from all episodes (skips already processed)
+python extract_takeaways.py
+
+# Force re-extraction of all episodes
+python extract_takeaways.py --force
+
+# Limit to first N episodes
+python extract_takeaways.py --limit 10
+
+# Show summary of existing takeaways
+python extract_takeaways.py --summary
+
+# Search takeaways by keyword
+python extract_takeaways.py --search "intake"
+
+# List takeaways by subject area
+python extract_takeaways.py --category "Digital Marketing"
+```
+
+**Extraction output per episode:**
+| Field | Type | Purpose |
+|-------|------|---------|
+| `key_takeaways` | list | 3-5 actionable bullet points |
+| `subject_area` | str | Primary category (e.g., "Intake Optimization", "Digital Marketing") |
+| `topics` | list | 3-7 specific topic tags |
+| `unique_insights` | str | Novel/contrarian ideas or "None identified" |
+| `action_items` | list | 1-3 implementable actions |
+| `notable_quotes` | list | 1-2 memorable quotes |
+
+### takeaways_index.json
+
+Stores all extracted takeaways, indexed by episode ID.
+
+```json
+{
+  "version": "1.0",
+  "updated_at": "2026-02-10T...",
+  "total_episodes": 1167,
+  "episodes": {
+    "abc123def456": {
+      "source": "Burbon of Proof PlaylistJson (1)",
+      "title": "Episode Title...",
+      "content_type": "video",
+      "extracted_at": "2026-02-08T15:55:00+00:00",
+      "key_takeaways": ["..."],
+      "subject_area": "Intake Optimization",
+      "topics": ["AI intake", "call monitoring", ...],
+      "unique_insights": "...",
+      "action_items": ["..."],
+      "notable_quotes": ["..."]
+    }
+  }
+}
+```
+
+The pipeline skips episodes with insufficient transcript (< 500 chars) and saves progress after each extraction for resume-safe operation.
+
+### Takeaways Integration in Chatbot
+
+The RAG pipeline (`rag.py`) loads `takeaways_index.json` at startup and builds two lookup structures:
+
+| Structure | Key | Purpose |
+|-----------|-----|---------|
+| `TAKEAWAYS_BY_SOURCE_TITLE` | `(source, title)` tuple | O(1) episode matching against Pinecone chunk metadata |
+| `TAKEAWAYS_BY_TOPIC` | lowercase topic string | Inverted index for keyword-based topic matching |
+
+**Retrieval strategy** (`get_relevant_takeaways()`):
+1. **Episode-matched (primary):** For each Pinecone result chunk, look up `(source, episode_title)` in the takeaways index
+2. **Topic-matched (supplementary):** If fewer than 5 matches found, scan query keywords against the topics inverted index
+3. **Cap:** Maximum 5 takeaways per query (~600-1,200 extra tokens)
+
+**Prompt injection** (`format_takeaways_for_prompt()`):
+- Formatted as structured text blocks between the context chunks and instructions in the user message
+- Each block includes: source, title, category, bullet-point takeaways, and action items
+- System prompt HOW TO WORK section instructs Claude to use Episode Takeaways for synthesis
+
+---
+
+## Dashboard Command Center (Phase 8.3)
+
+### Architecture
+
+The UI is a Flask-served vanilla HTML/CSS/JS app with two views (Dashboard and Chat) controlled by SPA-style tab switching. No frameworks, no build step.
+
+| File | Purpose |
+|------|---------|
+| `server.py` | Flask backend — page routes, conversation API, chat SSE, stats API, news API |
+| `rag.py` | RAG pipeline — search, rerank, takeaways, prompt builder, streaming |
+| `templates/index.html` | HTML template — Dashboard + Chat views, tab nav, sidebar |
+| `static/style.css` | CSS — Apple-inspired design system, responsive breakpoints |
+| `static/app.js` | Client JS — view switching, stats fetch, news fetch, SSE streaming |
+
+### API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/` | GET | Serve the main HTML page |
+| `/api/conversations` | GET | List all conversations |
+| `/api/conversations` | POST | Create a new conversation |
+| `/api/conversations/<id>/messages` | GET | Get messages for a conversation |
+| `/api/conversations/<id>` | DELETE | Delete a conversation |
+| `/api/chat/stream` | POST | SSE streaming chat (query + conversation_id) |
+| `/api/stats` | GET | Dashboard stats (episodes, sources, topics, conversations) |
+| `/api/news` | GET | PI/mass tort news headlines (cached 30 min) |
+
+### News Ticker
+
+Fetches from two sources:
+- **Google News RSS** — queries: "personal injury law firm", "mass tort litigation" (via `feedparser`)
+- **Reddit JSON API** — r/law hot posts (public, no auth, `User-Agent: BillAIMachine/1.0`)
+
+Cache: 30 minutes (`NEWS_CACHE_SECONDS = 1800`). Deduplicates by title. Returns `[{title, url, source, published_ago}]`.
+
+### Stats API
+
+Reads from `TAKEAWAYS_INDEX` (loaded at startup in `rag.py`):
+- `episodes`: total_episodes count
+- `sources`: count of `SOURCE_DISPLAY_NAMES`
+- `topics`: unique topics + subject areas across all episodes
+- `conversations`: count from `get_all_conversations()`

@@ -94,7 +94,7 @@ except FileNotFoundError:
 # ---------------------------------------------------------------------------
 TAKEAWAYS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "takeaways_index.json")
 try:
-    with open(TAKEAWAYS_FILE, "r") as f:
+    with open(TAKEAWAYS_FILE, "r", encoding="utf-8") as f:
         TAKEAWAYS_INDEX = json.load(f)
     logger.info("Loaded %d episode takeaways", len(TAKEAWAYS_INDEX.get("episodes", {})))
 except FileNotFoundError:

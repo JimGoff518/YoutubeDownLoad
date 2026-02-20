@@ -14,7 +14,9 @@
         "trial lawyer magazine": ["trial lawyer magazine", "trial lawyer"],
         "legal tech trends": ["legal tech trends", "legal technology"],
         "cmo survey": ["cmo survey", "legal marketing survey"],
-        "charley mann": ["charley mann", "law firm marketing"]
+        "charley mann": ["charley mann", "law firm marketing"],
+        "tip the scales": ["tip the scales", "bob simon"],
+        "referral marketing": ["referral marketing", "ken hardison", "referral marketing club"]
     },
     "source_filters": {
         "bourbon of proof": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
@@ -37,6 +39,9 @@
         "legal tech trends": ["LegalTechTrends2025"],
         "cmo survey": ["CMOSurvey2025"],
         "attorney at work": ["AttorneyAtWork_MarketingTrends2026"],
-        "charley mann": ["youtube_DQZvcjcG_cI"]
+        "charley mann": ["youtube_DQZvcjcG_cI"],
+        "tip the scales": ["TipTheScales"],
+        "referral marketing": ["ReferralMarketingClub_Q4"],
+        "referral marketing club": ["ReferralMarketingClub_Q4"]
     }
 }
