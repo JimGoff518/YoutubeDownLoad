@@ -599,28 +599,76 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ---
 
-## Phase 9: Auto-Refresh Pipeline
+## Phase 9: Auto-Refresh Pipeline (Design Complete — Feb 22, 2026)
 
 **Objective:** Automate the ingestion of new content so Super Agent stays current without manual intervention. This is critical infrastructure for the "stays current" promise.
 
-- [ ] **Automated monitoring** — Check YouTube channels and podcast RSS feeds for new episodes on a schedule (daily or weekly)
-- [ ] **Auto-extract and ingest** — On detection of new content: extract transcript, chunk, embed, upsert to Pinecone
-- [ ] **Auto-update entity mappings** — If a new source is added, prompt for entity mapping updates
-- [ ] **Scheduling** — Cron job, task scheduler, or cloud-based scheduler to run checks automatically
-- [ ] **Ingestion notifications** — Notify when new content is ingested ("3 new episodes ingested this week")
+**Design decisions (Session 13):**
+- **Runtime:** Dashboard "Refresh Now" button + Railway weekly cron (both)
+- **Frequency:** Weekly (Sunday night automatic run)
+- **Notifications:** Dashboard banner ("3 new episodes ingested this week")
+- **Source registry:** `sources_registry.json` — auto-built from existing output files, tracks what's already ingested
+- **Pipeline script:** `auto_refresh.py` — single script handles check → extract → chunk → embed → takeaways
+
+### 9.0 Source Registry & New Sources
+
+**20 monitored sources** (finalized Feb 22, 2026):
+
+| # | Source | Type | Channel/Playlist ID |
+|---|--------|------|---------------------|
+| 1 | Bourbon of Proof (Bob Simon) | YouTube Playlist | (existing) |
+| 2 | CEO Lawyer (Ali Awad) | YouTube Playlist | (existing) |
+| 3 | Grow Your Law Firm (Ken Hardison) | YouTube Playlist | (existing) |
+| 4 | Grow Your Law Firm Podcast | Podcast RSS | (existing) |
+| 5 | John Morgan Interviews | YouTube Playlist | (existing) |
+| 6 | Law Office YouTube Favorites | YouTube Playlist | (existing) |
+| 7 | Maximum Lawyer | YouTube Playlist | (existing) |
+| 8 | PIM Podcast (Seasons 1-3) | YouTube Playlist | (existing) |
+| 9 | Tip The Scales (Bob Simon) | YouTube Playlist | (existing) |
+| 10 | You Can't Teach Hungry (Mike Morse) | YouTube Playlist | (existing) |
+| 11 | Grey Sky Media Podcast | Podcast RSS | (existing) |
+| 12 | Referral Marketing Club (Ken Hardison) | Podcast RSS | (existing) |
+| 13 | **PI Wingman** | YouTube Channel | `UCFlV9DM5dSwE2SG_6QxlEQA` (36 vids) |
+| 14 | **Grey Smoke Media** | YouTube Channel | `UCBIXLD8ctG3UiwnjeKl0Oow` (150 vids) |
+| 15 | **Juris Digital** | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` (1,054 vids) |
+| 16 | **Grow Law Podcast** | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` (137 vids) |
+| 17 | **Championing Justice** (Champion Firm) | YouTube Playlist | `PLNIKRzBsqWE-Z4GgTrwj7NoqCEYrk_J4C` (29 vids) |
+| 18 | **PI Playbook by Xcelerator** | YouTube Playlist | `PLWpUeNUscbaMVgUDUTkghcNXGrhKo1cup` (38 vids) |
+| 19 | **ExtroMarketing** | YouTube Channel | `UC7lqbiyKrZpexSN3LWhEV0w` (14 vids) |
+| 20 | **WEBRIS: Legal Marketing** | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` (204 vids) |
+
+**Removed:** Pre-Lit Guru Sessions (deprioritized), Andy Stickel/Bill Hauser (2,173 vids — too expensive)
+
+### 9.1 Auto-Refresh Pipeline
+
+- [ ] **Build source registry** (`sources_registry.json`) — Config file listing every source with type (youtube_channel/youtube_playlist/podcast_rss), ID/URL, and list of already-ingested episode IDs. Auto-populate from existing output/ files.
+- [ ] **Build auto-refresh script** (`auto_refresh.py`) — Single script that:
+  - Reads source registry
+  - Checks each source for new episodes (YouTube API for channels/playlists, RSS for podcasts)
+  - Extracts transcripts for new episodes
+  - Chunks, embeds, and upserts to Pinecone
+  - Runs takeaways extraction via Claude
+  - Updates source registry with new episode IDs
+  - Logs results to `refresh_log.json`
+- [ ] **Initial ingestion of 8 new sources** — First run of auto_refresh.py to ingest PI Wingman, Grey Smoke Media, Juris Digital, Grow Law Podcast, Championing Justice, PI Playbook, ExtroMarketing, WEBRIS
+- [ ] **Dashboard "Refresh Now" button** — `/api/refresh` endpoint that triggers auto_refresh.py, returns progress via SSE
+- [ ] **Dashboard notification banner** — Show "X new episodes ingested" on Dashboard view, read from refresh_log.json
+- [ ] **Railway weekly cron** — Schedule auto_refresh.py to run weekly (Sunday night)
 - [ ] **Error handling and retry** — Graceful handling of failed extractions/ingestions with retry logic
-- [ ] **Ingestion log** — Append to `ingestion_log.jsonl` after each auto-run
+- [ ] **Entity mappings update** — Add query expansion and source filter entries for all 8 new sources
 
 ### Testing & Validation (Phase 9)
 
 **Automated:**
 - [ ] Trigger the auto-refresh pipeline manually — confirm it detects a known new episode and ingests it
-- [ ] Verify notification is sent after ingestion
-- [ ] Verify ingestion log is updated
+- [ ] Verify dashboard notification banner shows after ingestion
+- [ ] Verify refresh_log.json is updated with correct counts
+- [ ] Verify no duplicate ingestion of already-processed episodes
 
 **Manual:**
 - [ ] Let the pipeline run on schedule for one week — confirm new episodes are ingested without intervention
-- [ ] Verify no duplicate ingestion of already-processed episodes
+- [ ] Verify new sources (PI Wingman, Juris Digital, etc.) are searchable in the chatbot after initial ingestion
+- [ ] Check Pinecone vector count increased by expected amount
 
 ---
 

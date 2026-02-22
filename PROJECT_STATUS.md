@@ -1,6 +1,6 @@
 # Bill AI Machine - Project Status
 
-**Last updated:** February 20, 2026
+**Last updated:** February 22, 2026
 **Owner:** Goff Law (Personal Injury Law Firm, Dallas TX)
 
 ---
@@ -184,7 +184,20 @@ Entity mappings are configured in `entity_mappings.json`. Pinecone index: **14,1
 | Trial Lawyer Magazine (8 issues, 2024-2025) | PDF | `TrialLawyer_Spring2024` thru `TrialLawyer_AList2025` | Yes |
 | Tip the Scales (Bob Simon) | Podcast | `TipTheScales` | Yes |
 | Referral Marketing Club (Ken Hardison) | Video | `ReferralMarketingClub_Q4` | Yes |
-| PreLitGuru Sessions | YouTube | `PreLitGuru_Sessions` | **Removed** |
+| PreLitGuru Sessions | YouTube | `PreLitGuru_Sessions` | **Removed** (session 12) |
+
+**Planned new sources (Phase 9 — not yet ingested):**
+
+| Source | Type | Channel/Playlist ID | Videos |
+|--------|------|---------------------|--------|
+| PI Wingman | YouTube Channel | `UCFlV9DM5dSwE2SG_6QxlEQA` | 36 |
+| Grey Smoke Media | YouTube Channel | `UCBIXLD8ctG3UiwnjeKl0Oow` | 150 |
+| Juris Digital | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` | 1,054 |
+| Grow Law Podcast | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` | 137 |
+| Championing Justice (Champion Firm) | YouTube Playlist | `PLNIKRzBsqWE-Z4GgTrwj7NoqCEYrk_J4C` | 29 |
+| PI Playbook by Xcelerator | YouTube Playlist | `PLWpUeNUscbaMVgUDUTkghcNXGrhKo1cup` | 38 |
+| ExtroMarketing | YouTube Channel | `UC7lqbiyKrZpexSN3LWhEV0w` | 14 |
+| WEBRIS: Legal Marketing | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` | 204 |
 
 ---
 
@@ -221,6 +234,7 @@ docker run -p 8080:8080 --env-file .env bill-ai-machine
 
 ## Recent Changes
 
+- **Feb 22, 2026 (session 13):** Production deployment verified + Auto-Refresh Pipeline design — Confirmed Dashboard Command Center is live on `gofflawsuperagent.up.railway.app` (health check passing, stats API returning 1,167 episodes / 30 sources / 4,952 topics, news ticker loading). Designed Phase 9 Auto-Refresh Pipeline: weekly Railway cron + Dashboard "Refresh Now" button, dashboard banner notifications. Finalized 20 monitored sources (12 existing + 8 new). New sources: PI Wingman (36 vids), Grey Smoke Media (150 vids), Juris Digital (1,054 vids), Grow Law Podcast (137 vids), Championing Justice (29 vids), PI Playbook by Xcelerator (38 vids), ExtroMarketing (14 vids), WEBRIS Legal Marketing (204 vids). Removed Pre-Lit Guru (deprioritized) and rejected Andy Stickel/Bill Hauser (2,173 vids — too expensive). No code written this session — design/planning only.
 - **Feb 19-20, 2026 (session 12):** Dashboard Command Center UI — Built a two-view Marketing Command Center (Dashboard + Chat) replacing the old Streamlit-only interface. Dashboard features: stats cards (episodes, sources, topics, conversations), 6 quick-action prompt cards for Chelsea (Weekly Briefing, Content Calendar, Competitive Intel, Intake Optimization, SEO Strategy, Draft SOP). Added PI/mass tort news ticker in sidebar pulling from Google News RSS and Reddit, cached for 30 minutes. New API endpoints: `/api/stats` (knowledge base metrics from takeaways_index.json) and `/api/news` (aggregated news feed). Tab navigation switches between Dashboard and Chat views (SPA-style, no page reloads). Conversations list shows in sidebar only when in Chat view. Added `feedparser==6.0.12` dependency. Fixed UTF-8 encoding bug in `rag.py` for takeaways_index.json. Completed takeaways extraction: 871 → 1,167 episodes (Phase 7.2 complete). Design doc: `docs/plans/2026-02-19-dashboard-command-center-design.md`.
 - **Feb 10, 2026 (session 11):** Phase 7.2 Takeaways Integration — Injected takeaways into chatbot context: added startup loading of `takeaways_index.json` with dual lookup structures (`TAKEAWAYS_BY_SOURCE_TITLE` for episode matching, `TAKEAWAYS_BY_TOPIC` for keyword matching). Built `get_relevant_takeaways()` with two strategies: (1) episode-matched via Pinecone chunk metadata, (2) topic-matched via query keyword scan against inverted index. Added `format_takeaways_for_prompt()` to inject up to 5 episode takeaways (~600-1,200 tokens) into each query. Updated `build_prompt()` and system prompt HOW TO WORK section. Kicked off full extraction run — processing all remaining episodes across 32 JSON files. Extraction is resume-safe (saves after each episode). Progress: 246+ episodes extracted and growing (up from 41). Extraction still running for large files (Grow Your Law Firm ~445 eps, PIM Podcast ~339 eps).
 - **Feb 8, 2026 (session 10):** Phase 2 Complete + Phase 7 Started — Finished Phase 2 (Retrieval Quality): documented final parameter values (TOP_K=25, RERANK_TOP_K=10, MIN_SCORE_THRESHOLD=0.3) based on eval results (6/6 source accuracy, 4/4 off-topic filtering, 0 false positives). Started Phase 7 (Super Agent): created `goff_law_profile.json` with firm-specific context (Goff Law, Dallas, DFW market, practice areas, team info for Jim and Chelsea). Updated system prompt in `chat_app_with_history.py` to inject firm profile dynamically. Built key takeaways extraction pipeline (`extract_takeaways.py`) that uses Claude to extract structured metadata from episodes: key takeaways, subject area, topics, unique insights, action items, notable quotes. Tested on 41 episodes from Bourbon of Proof — all extracted successfully. Takeaways searchable via CLI (`--search`, `--category`, `--summary`). Stored in `takeaways_index.json`.

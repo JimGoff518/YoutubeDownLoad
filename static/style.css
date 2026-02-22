@@ -72,6 +72,12 @@ body {
     margin-bottom: 1rem;
 }
 
+.brand-video {
+    width: 100%;
+    border-radius: var(--radius-md);
+    display: block;
+}
+
 .brand-icon {
     font-size: 1.5rem;
 }
