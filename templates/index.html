@@ -43,6 +43,11 @@
         <!-- Dashboard View -->
         <div id="dashboard-view" class="view active">
             <div class="dashboard-content">
+                <div id="refresh-banner" class="refresh-banner" style="display:none;">
+                    <span id="refresh-banner-text"></span>
+                    <button class="banner-dismiss" onclick="dismissBanner()">&times;</button>
+                </div>
+
                 <div class="dashboard-header">
                     <h1>Marketing Command Center</h1>
                     <p>Your AI-powered marketing intelligence hub for Goff Law</p>
@@ -66,6 +71,14 @@
                         <div class="stat-number" id="stat-conversations">--</div>
                         <div class="stat-label">Conversations</div>
                     </div>
+                </div>
+
+                <!-- Refresh Bar -->
+                <div class="refresh-bar">
+                    <button id="refresh-btn" class="btn-refresh" onclick="triggerRefresh()">
+                        Refresh Knowledge Base
+                    </button>
+                    <span id="refresh-status" class="refresh-status"></span>
                 </div>
 
                 <!-- Quick Actions -->

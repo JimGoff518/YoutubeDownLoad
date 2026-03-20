@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import time
+import threading
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
 OUTPUT_DIR = Path("/app/output")
+REFRESH_LOG_PATH = Path("refresh_log.json")
 
 
 # ============================================
@@ -372,6 +374,55 @@ def get_news():
         _news_cache["fetched_at"] = now
         logger.info(f"Cached {len(_news_cache['data'])} news items")
     return jsonify(_news_cache["data"])
+
+
+# ============================================
+# REFRESH PIPELINE API
+# ============================================
+
+_refresh_status = {"running": False, "last_result": None}
+
+
+@app.route("/api/refresh", methods=["POST"])
+def trigger_refresh():
+    """Trigger the auto-refresh pipeline."""
+    if _refresh_status["running"]:
+        return jsonify({"error": "Refresh already running"}), 409
+
+    def run_in_background():
+        _refresh_status["running"] = True
+        try:
+            from auto_refresh import run_refresh
+            result = run_refresh()
+            _refresh_status["last_result"] = result
+        except Exception as e:
+            _refresh_status["last_result"] = {"error": str(e)}
+        finally:
+            _refresh_status["running"] = False
+
+    thread = threading.Thread(target=run_in_background, daemon=True)
+    thread.start()
+    return jsonify({"status": "started"})
+
+
+@app.route("/api/refresh/status")
+def refresh_status():
+    """Check refresh pipeline status."""
+    return jsonify(_refresh_status)
+
+
+@app.route("/api/refresh/latest")
+def refresh_latest():
+    """Get the latest refresh result for the notification banner."""
+    try:
+        if REFRESH_LOG_PATH.exists():
+            with open(REFRESH_LOG_PATH, encoding="utf-8") as f:
+                log = json.load(f)
+            if log:
+                return jsonify(log[-1])
+        return jsonify(None)
+    except Exception:
+        return jsonify(None)
 
 
 if __name__ == "__main__":

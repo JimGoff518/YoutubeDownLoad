@@ -84,6 +84,7 @@ const state = {
     });
     fetchStats();
     fetchNews();
+    loadRefreshBanner();
 
     // Refresh news every 30 minutes
     setInterval(fetchNews, 30 * 60 * 1000);
@@ -449,4 +450,75 @@ function formatDate(dateStr) {
 function updateSendButton() {
     const btn = document.getElementById('send-btn');
     btn.disabled = state.isStreaming;
+}
+
+
+// -----------------------------------------------------------------------------
+// Dashboard: Refresh Knowledge Base
+// -----------------------------------------------------------------------------
+
+async function triggerRefresh() {
+    const btn = document.getElementById('refresh-btn');
+    const status = document.getElementById('refresh-status');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+    status.textContent = 'Checking sources for new episodes...';
+
+    try {
+        const resp = await fetch('/api/refresh', { method: 'POST' });
+        if (resp.status === 409) {
+            status.textContent = 'Refresh already running.';
+            return;
+        }
+        // Poll for completion
+        const poll = setInterval(async () => {
+            const s = await fetch('/api/refresh/status').then(r => r.json());
+            if (!s.running) {
+                clearInterval(poll);
+                btn.disabled = false;
+                btn.textContent = 'Refresh Knowledge Base';
+                if (s.last_result && s.last_result.episodes_ingested !== undefined) {
+                    status.textContent =
+                        `Done! ${s.last_result.episodes_ingested} new episodes ingested, ` +
+                        `${s.last_result.takeaways_extracted} takeaways extracted.`;
+                    fetchStats(); // Refresh dashboard stats
+                } else if (s.last_result && s.last_result.error) {
+                    status.textContent = 'Error: ' + s.last_result.error;
+                }
+            }
+        }, 5000);
+    } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'Refresh Knowledge Base';
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+// Dashboard: Refresh Notification Banner
+// -----------------------------------------------------------------------------
+
+async function loadRefreshBanner() {
+    try {
+        const data = await fetch('/api/refresh/latest').then(r => r.json());
+        if (!data || !data.episodes_ingested) return;
+
+        // Only show if refresh was within last 7 days
+        const refreshDate = new Date(data.finished_at);
+        const daysSince = (Date.now() - refreshDate) / (1000 * 60 * 60 * 24);
+        if (daysSince > 7) return;
+
+        const banner = document.getElementById('refresh-banner');
+        const text = document.getElementById('refresh-banner-text');
+        const when = daysSince < 1 ? 'today' : `${Math.round(daysSince)}d ago`;
+        text.textContent =
+            `${data.episodes_ingested} new episodes ingested ${when} ` +
+            `from ${data.sources_checked} sources`;
+        banner.style.display = 'flex';
+    } catch (e) { /* ignore */ }
+}
+
+function dismissBanner() {
+    document.getElementById('refresh-banner').style.display = 'none';
 }
