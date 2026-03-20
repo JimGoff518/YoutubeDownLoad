@@ -16,7 +16,14 @@
         "cmo survey": ["cmo survey", "legal marketing survey"],
         "charley mann": ["charley mann", "law firm marketing"],
         "tip the scales": ["tip the scales", "bob simon"],
-        "referral marketing": ["referral marketing", "ken hardison", "referral marketing club"]
+        "referral marketing": ["referral marketing", "ken hardison", "referral marketing club"],
+        "pi wingman": ["pi wingman", "cases on demand"],
+        "grey smoke media": ["grey smoke media"],
+        "juris digital": ["juris digital"],
+        "championing justice": ["championing justice", "champion firm"],
+        "pi playbook": ["pi playbook", "xcelerator"],
+        "extromarketing": ["extromarketing"],
+        "webris": ["webris", "legal marketing"]
     },
     "source_filters": {
         "bourbon of proof": ["Burbon of Proof PlaylistJson (1)", "BurbonofProofPlaylist"],
@@ -42,6 +49,16 @@
         "charley mann": ["youtube_DQZvcjcG_cI"],
         "tip the scales": ["TipTheScales"],
         "referral marketing": ["ReferralMarketingClub_Q4"],
-        "referral marketing club": ["ReferralMarketingClub_Q4"]
+        "referral marketing club": ["ReferralMarketingClub_Q4"],
+        "pi wingman": ["PIWingman"],
+        "cases on demand": ["PIWingman"],
+        "grey smoke media": ["GreySmokeMedia"],
+        "juris digital": ["JurisDigital"],
+        "championing justice": ["ChampioningJustice"],
+        "champion firm": ["ChampioningJustice"],
+        "pi playbook": ["PIPlaybook"],
+        "xcelerator": ["PIPlaybook"],
+        "extromarketing": ["ExtroMarketing"],
+        "webris": ["WEBRIS"]
     }
 }

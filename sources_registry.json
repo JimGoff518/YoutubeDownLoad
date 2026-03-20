@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "updated_at": null,
+  "sources": [
+    {
+      "name": "Bourbon of Proof",
+      "type": "youtube_playlist",
+      "playlist_id": "PLnz61uhJ5jfR2m8AFIHI_AUUdhsKu8noz",
+      "output_source_name": "Burbon of Proof PlaylistJson (1)",
+      "display_name": "Bob Simon (Bourbon of Proof)",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "Grow Your Law Firm",
+      "type": "youtube_playlist",
+      "playlist_id": "PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn",
+      "output_source_name": "GrowYourLawFirmPlaylist",
+      "display_name": "Ken Hardison (Grow Your Law Firm)",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "PI Wingman",
+      "type": "youtube_channel",
+      "channel_id": "UCFlV9DM5dSwE2SG_6QxlEQA",
+      "output_source_name": "PIWingman",
+      "display_name": "PI Wingman (Cases On Demand)",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "Grey Smoke Media",
+      "type": "youtube_channel",
+      "channel_id": "UCBIXLD8ctG3UiwnjeKl0Oow",
+      "output_source_name": "GreySmokeMedia",
+      "display_name": "Grey Smoke Media",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "Juris Digital",
+      "type": "youtube_channel",
+      "channel_id": "UCUhZZMr0706Jkc5eLZTGzMg",
+      "output_source_name": "JurisDigital",
+      "display_name": "Juris Digital",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "Grow Law Podcast",
+      "type": "youtube_playlist",
+      "playlist_id": "PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn",
+      "output_source_name": "GrowLawPodcast",
+      "display_name": "Grow Law Podcast",
+      "enabled": false,
+      "notes": "Same playlist ID as Grow Your Law Firm — disabled to avoid duplicate ingestion"
+    },
+    {
+      "name": "Championing Justice",
+      "type": "youtube_playlist",
+      "playlist_id": "PLNIKRzBsqWE-Z4GgTrwj7NoqCEYrk_J4C",
+      "output_source_name": "ChampioningJustice",
+      "display_name": "Championing Justice (Champion Firm)",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "PI Playbook",
+      "type": "youtube_playlist",
+      "playlist_id": "PLWpUeNUscbaMVgUDUTkghcNXGrhKo1cup",
+      "output_source_name": "PIPlaybook",
+      "display_name": "PI Playbook by Xcelerator",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "ExtroMarketing",
+      "type": "youtube_channel",
+      "channel_id": "UC7lqbiyKrZpexSN3LWhEV0w",
+      "output_source_name": "ExtroMarketing",
+      "display_name": "ExtroMarketing",
+      "enabled": true,
+      "known_video_ids": []
+    },
+    {
+      "name": "WEBRIS",
+      "type": "youtube_channel",
+      "channel_id": "UCNOyABR6DZeyWlNd1YAcj6Q",
+      "output_source_name": "WEBRIS",
+      "display_name": "WEBRIS: Legal Marketing",
+      "enabled": true,
+      "known_video_ids": []
+    }
+  ]
+}

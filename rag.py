@@ -135,6 +135,14 @@ SOURCE_DISPLAY_NAMES = {
     "LawFirmMarketingSecrets2025": "Law Firm Marketing Secrets 2025",
     "LawOfficeYouTubeFavorites": "Law Office YouTube Favorites",
     "Abrams_Rd_voice_memo": "Jim Goff (Voice Memo)",
+    "PIWingman": "PI Wingman (Cases On Demand)",
+    "GreySmokeMedia": "Grey Smoke Media",
+    "JurisDigital": "Juris Digital",
+    "GrowLawPodcast": "Grow Law Podcast",
+    "ChampioningJustice": "Championing Justice (Champion Firm)",
+    "PIPlaybook": "PI Playbook by Xcelerator",
+    "ExtroMarketing": "ExtroMarketing",
+    "WEBRIS": "WEBRIS: Legal Marketing",
 }
 
 
