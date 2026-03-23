@@ -11,7 +11,7 @@ Extract transcripts from all videos in a YouTube channel with rich metadata opti
 ## Features
 
 - **Marketing Command Center** — Dashboard with knowledge base stats, quick-action prompts, and live PI/mass tort news ticker
-- **Super Agent Chatbot** — AI marketing director powered by Claude with RAG pipeline (1,000+ episodes indexed)
+- **Super Agent Chatbot** — AI marketing director powered by Claude with RAG pipeline (1,400+ episodes indexed)
 - Extract transcripts from entire YouTube channels
 - Rich metadata including video details, engagement metrics, and channel information
 - ML-optimized JSON output with token counts and engagement rates

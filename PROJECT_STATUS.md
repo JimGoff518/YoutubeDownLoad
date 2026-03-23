@@ -1,6 +1,6 @@
 # Bill AI Machine - Project Status
 
-**Last updated:** February 22, 2026
+**Last updated:** March 23, 2026
 **Owner:** Goff Law (Personal Injury Law Firm, Dallas TX)
 
 ---
@@ -80,9 +80,11 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
 | Retrieval evaluation framework | `eval_retrieval.py` | Working |
 | Takeaways context enrichment | `rag.py` | Working |
 | Episode takeaways extraction | `extract_takeaways.py` | Working |
-| Dashboard stats API | `server.py` `/api/stats` | **New** |
-| News ticker (Google News + Reddit) | `server.py` `/api/news` | **New** |
-| Quick-action prompt cards | `templates/index.html` | **New** |
+| Dashboard stats API | `server.py` `/api/stats` | Working |
+| News ticker (Google News + Reddit) | `server.py` `/api/news` | Working |
+| Quick-action prompt cards | `templates/index.html` | Working |
+| Dashboard "Refresh Now" button | `server.py` `/api/refresh` | Working |
+| Dashboard notification banner | `templates/index.html` | Working |
 
 ### 4. Infrastructure (Working)
 
@@ -109,6 +111,8 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
 | `extract_youtube.py` | YouTube video extraction (Windows-safe wrapper) | New |
 | `extract_trial_lawyer.py` | Magazine article classifier (Claude-powered, marketing relevance) | New |
 | `ingest_new_sources.py` | Selective ingestion of specific JSON files to Pinecone | New |
+| `auto_refresh.py` | Auto-refresh pipeline: check → extract → chunk → embed → takeaways | **New** |
+| `sources_registry.json` | Source registry with known episode IDs for dedup | **New** |
 
 ### 6. Automated Tests (New)
 
@@ -162,7 +166,7 @@ All keys go in `.env` file.
 
 ## Content Sources Ingested
 
-Entity mappings are configured in `entity_mappings.json`. Pinecone index: **14,103 vectors**. Takeaways: **1,167 episodes** extracted (complete as of Feb 20, 2026).
+Entity mappings are configured in `entity_mappings.json`. Takeaways: **1,442 episodes** extracted (as of Mar 23, 2026).
 
 | Source | Type | Pinecone source name | Entity mapped |
 |--------|------|---------------------|---------------|
@@ -186,18 +190,23 @@ Entity mappings are configured in `entity_mappings.json`. Pinecone index: **14,1
 | Referral Marketing Club (Ken Hardison) | Video | `ReferralMarketingClub_Q4` | Yes |
 | PreLitGuru Sessions | YouTube | `PreLitGuru_Sessions` | **Removed** (session 12) |
 
-**Planned new sources (Phase 9 — not yet ingested):**
+**New sources (Phase 9 — ingested via auto_refresh.py):**
 
-| Source | Type | Channel/Playlist ID | Videos |
-|--------|------|---------------------|--------|
-| PI Wingman | YouTube Channel | `UCFlV9DM5dSwE2SG_6QxlEQA` | 36 |
-| Grey Smoke Media | YouTube Channel | `UCBIXLD8ctG3UiwnjeKl0Oow` | 150 |
-| Juris Digital | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` | 1,054 |
-| Grow Law Podcast | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` | 137 |
-| Championing Justice (Champion Firm) | YouTube Playlist | `PLNIKRzBsqWE-Z4GgTrwj7NoqCEYrk_J4C` | 29 |
-| PI Playbook by Xcelerator | YouTube Playlist | `PLWpUeNUscbaMVgUDUTkghcNXGrhKo1cup` | 38 |
-| ExtroMarketing | YouTube Channel | `UC7lqbiyKrZpexSN3LWhEV0w` | 14 |
-| WEBRIS: Legal Marketing | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` | 204 |
+| Source | Type | Pinecone source name | Episodes | Status |
+|--------|------|---------------------|----------|--------|
+| PI Wingman (Cases On Demand) | YouTube Channel | `PIWingman` | 37 | **Ingested** ✓ |
+| Grey Smoke Media | YouTube Channel | `GreySmokeMedia` | 145 | **Ingested** ✓ |
+| Championing Justice (Champion Firm) | YouTube Playlist | `ChampioningJustice` | 29 | **Ingested** ✓ |
+| PI Playbook by Xcelerator | YouTube Playlist | `PIPlaybook` | 38 | **Ingested** ✓ |
+| ExtroMarketing | YouTube Channel | `ExtroMarketing` | 13 | **Ingested** ✓ |
+
+**Remaining new sources (not yet ingested):**
+
+| Source | Type | Channel/Playlist ID | Videos | Status |
+|--------|------|---------------------|--------|--------|
+| WEBRIS: Legal Marketing | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` | ~208 | Paused |
+| Juris Digital | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` | ~1,087 | Paused |
+| Grow Law Podcast | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` | 137 | Disabled |
 
 ---
 
@@ -234,6 +243,8 @@ docker run -p 8080:8080 --env-file .env bill-ai-machine
 
 ## Recent Changes
 
+- **Mar 23, 2026 (session 15):** Grey Smoke Media + PI Wingman ingestion — Ingested 145 Grey Smoke Media episodes (143 takeaways) and 37 PI Wingman episodes (35 takeaways) via `auto_refresh.py --source`. Backfilled 8 Grey Smoke Media episodes that failed during initial run using `extract_takeaways.py`. Both committed and deployed to Railway. Total: 1,442 episodes, 5,634 topics, 38 sources. WEBRIS and Juris Digital remain paused. Phase 9 auto-refresh pipeline now 5 of 8 new sources complete.
+- **Feb 22, 2026 (session 14):** Auto-refresh pipeline implementation + initial ingestion — Built `auto_refresh.py` (single-source and full pipeline modes), `sources_registry.json` (10 monitored sources with known_video_ids), Dashboard "Refresh Now" button (`/api/refresh`), and notification banner. Ingested 5 initial sources: Championing Justice (29 eps), PI Playbook (38 eps), ExtroMarketing (13 eps), plus updates to Bourbon of Proof and Grow Your Law Firm. Added 8 new source configs to registry.
 - **Feb 22, 2026 (session 13):** Production deployment verified + Auto-Refresh Pipeline design — Confirmed Dashboard Command Center is live on `gofflawsuperagent.up.railway.app` (health check passing, stats API returning 1,167 episodes / 30 sources / 4,952 topics, news ticker loading). Designed Phase 9 Auto-Refresh Pipeline: weekly Railway cron + Dashboard "Refresh Now" button, dashboard banner notifications. Finalized 20 monitored sources (12 existing + 8 new). New sources: PI Wingman (36 vids), Grey Smoke Media (150 vids), Juris Digital (1,054 vids), Grow Law Podcast (137 vids), Championing Justice (29 vids), PI Playbook by Xcelerator (38 vids), ExtroMarketing (14 vids), WEBRIS Legal Marketing (204 vids). Removed Pre-Lit Guru (deprioritized) and rejected Andy Stickel/Bill Hauser (2,173 vids — too expensive). No code written this session — design/planning only.
 - **Feb 19-20, 2026 (session 12):** Dashboard Command Center UI — Built a two-view Marketing Command Center (Dashboard + Chat) replacing the old Streamlit-only interface. Dashboard features: stats cards (episodes, sources, topics, conversations), 6 quick-action prompt cards for Chelsea (Weekly Briefing, Content Calendar, Competitive Intel, Intake Optimization, SEO Strategy, Draft SOP). Added PI/mass tort news ticker in sidebar pulling from Google News RSS and Reddit, cached for 30 minutes. New API endpoints: `/api/stats` (knowledge base metrics from takeaways_index.json) and `/api/news` (aggregated news feed). Tab navigation switches between Dashboard and Chat views (SPA-style, no page reloads). Conversations list shows in sidebar only when in Chat view. Added `feedparser==6.0.12` dependency. Fixed UTF-8 encoding bug in `rag.py` for takeaways_index.json. Completed takeaways extraction: 871 → 1,167 episodes (Phase 7.2 complete). Design doc: `docs/plans/2026-02-19-dashboard-command-center-design.md`.
 - **Feb 10, 2026 (session 11):** Phase 7.2 Takeaways Integration — Injected takeaways into chatbot context: added startup loading of `takeaways_index.json` with dual lookup structures (`TAKEAWAYS_BY_SOURCE_TITLE` for episode matching, `TAKEAWAYS_BY_TOPIC` for keyword matching). Built `get_relevant_takeaways()` with two strategies: (1) episode-matched via Pinecone chunk metadata, (2) topic-matched via query keyword scan against inverted index. Added `format_takeaways_for_prompt()` to inject up to 5 episode takeaways (~600-1,200 tokens) into each query. Updated `build_prompt()` and system prompt HOW TO WORK section. Kicked off full extraction run — processing all remaining episodes across 32 JSON files. Extraction is resume-safe (saves after each episode). Progress: 246+ episodes extracted and growing (up from 41). Extraction still running for large files (Grow Your Law Firm ~445 eps, PIM Podcast ~339 eps).
@@ -296,7 +307,9 @@ Bill AI Machine/
 ├── eval_results.json             # Latest eval run output
 ├── goff_law_profile.json         # Firm-specific context for Super Agent (Phase 7)
 ├── extract_takeaways.py          # Episode takeaways extraction pipeline (Phase 7)
-├── takeaways_index.json          # Structured takeaways index (searchable)
+├── takeaways_index.json          # Structured takeaways index (1,442 episodes)
+├── auto_refresh.py               # Auto-refresh pipeline (Phase 9)
+├── sources_registry.json         # Source registry with known video IDs
 ├── DOCUMENTATION.md              # Technical reference (extraction APIs & models)
 ├── docs/plans/                   # Design documents
 ├── Dockerfile                    # Container definition

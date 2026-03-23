@@ -508,7 +508,7 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
   - Capped at 5 episodes per query (~600-1,200 extra tokens)
   - Added to `build_prompt()` between context chunks and instructions
   - System prompt HOW TO WORK section updated to reference Episode Takeaways
-- [x] **Process all episodes** — Full extraction run across 32 JSON source files (1,167 of ~1,170 complete)
+- [x] **Process all episodes** — Full extraction run across 37 JSON source files (1,442 episodes complete as of Mar 23, 2026)
 - [ ] **Build a takeaways review UI** — Page to browse, search, and filter episode takeaways by topic, source, or date
 - [ ] **Auto-generate takeaways on ingestion** — When new episodes are ingested, automatically run the takeaways extraction pipeline
 
@@ -599,7 +599,7 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 
 ---
 
-## Phase 9: Auto-Refresh Pipeline (Design Complete — Feb 22, 2026)
+## Phase 9: Auto-Refresh Pipeline (In Progress)
 
 **Objective:** Automate the ingestion of new content so Super Agent stays current without manual intervention. This is critical infrastructure for the "stays current" promise.
 
@@ -628,21 +628,21 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
 | 10 | You Can't Teach Hungry (Mike Morse) | YouTube Playlist | (existing) |
 | 11 | Grey Sky Media Podcast | Podcast RSS | (existing) |
 | 12 | Referral Marketing Club (Ken Hardison) | Podcast RSS | (existing) |
-| 13 | **PI Wingman** | YouTube Channel | `UCFlV9DM5dSwE2SG_6QxlEQA` (36 vids) |
-| 14 | **Grey Smoke Media** | YouTube Channel | `UCBIXLD8ctG3UiwnjeKl0Oow` (150 vids) |
-| 15 | **Juris Digital** | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` (1,054 vids) |
-| 16 | **Grow Law Podcast** | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` (137 vids) |
-| 17 | **Championing Justice** (Champion Firm) | YouTube Playlist | `PLNIKRzBsqWE-Z4GgTrwj7NoqCEYrk_J4C` (29 vids) |
-| 18 | **PI Playbook by Xcelerator** | YouTube Playlist | `PLWpUeNUscbaMVgUDUTkghcNXGrhKo1cup` (38 vids) |
-| 19 | **ExtroMarketing** | YouTube Channel | `UC7lqbiyKrZpexSN3LWhEV0w` (14 vids) |
-| 20 | **WEBRIS: Legal Marketing** | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` (204 vids) |
+| 13 | **PI Wingman** | YouTube Channel | `UCFlV9DM5dSwE2SG_6QxlEQA` | **37 ingested** ✓ |
+| 14 | **Grey Smoke Media** | YouTube Channel | `UCBIXLD8ctG3UiwnjeKl0Oow` | **145 ingested** ✓ |
+| 15 | **Juris Digital** | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` | ~1,087 vids — paused |
+| 16 | **Grow Law Podcast** | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` | 137 vids — disabled |
+| 17 | **Championing Justice** (Champion Firm) | YouTube Playlist | `PLNIKRzBsqWE-Z4GgTrwj7NoqCEYrk_J4C` | **29 ingested** ✓ |
+| 18 | **PI Playbook by Xcelerator** | YouTube Playlist | `PLWpUeNUscbaMVgUDUTkghcNXGrhKo1cup` | **38 ingested** ✓ |
+| 19 | **ExtroMarketing** | YouTube Channel | `UC7lqbiyKrZpexSN3LWhEV0w` | **13 ingested** ✓ |
+| 20 | **WEBRIS: Legal Marketing** | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` | ~208 vids — paused |
 
 **Removed:** Pre-Lit Guru Sessions (deprioritized), Andy Stickel/Bill Hauser (2,173 vids — too expensive)
 
 ### 9.1 Auto-Refresh Pipeline
 
-- [ ] **Build source registry** (`sources_registry.json`) — Config file listing every source with type (youtube_channel/youtube_playlist/podcast_rss), ID/URL, and list of already-ingested episode IDs. Auto-populate from existing output/ files.
-- [ ] **Build auto-refresh script** (`auto_refresh.py`) — Single script that:
+- [x] **Build source registry** (`sources_registry.json`) — Config file listing every source with type (youtube_channel/youtube_playlist/podcast_rss), ID/URL, and list of already-ingested episode IDs. Auto-populate from existing output/ files.
+- [x] **Build auto-refresh script** (`auto_refresh.py`) — Single script that:
   - Reads source registry
   - Checks each source for new episodes (YouTube API for channels/playlists, RSS for podcasts)
   - Extracts transcripts for new episodes
@@ -650,11 +650,11 @@ These are the checks that confirmed Phase 1 was complete. Keep them here for reg
   - Runs takeaways extraction via Claude
   - Updates source registry with new episode IDs
   - Logs results to `refresh_log.json`
-- [ ] **Initial ingestion of 8 new sources** — First run of auto_refresh.py to ingest PI Wingman, Grey Smoke Media, Juris Digital, Grow Law Podcast, Championing Justice, PI Playbook, ExtroMarketing, WEBRIS
-- [ ] **Dashboard "Refresh Now" button** — `/api/refresh` endpoint that triggers auto_refresh.py, returns progress via SSE
-- [ ] **Dashboard notification banner** — Show "X new episodes ingested" on Dashboard view, read from refresh_log.json
+- [ ] **Initial ingestion of 8 new sources** — 5 of 8 complete (PI Wingman ✓, Grey Smoke Media ✓, Championing Justice ✓, PI Playbook ✓, ExtroMarketing ✓). Remaining: WEBRIS (paused), Juris Digital (paused), Grow Law Podcast (disabled).
+- [x] **Dashboard "Refresh Now" button** — `/api/refresh` endpoint that triggers auto_refresh.py, returns progress via SSE
+- [x] **Dashboard notification banner** — Show "X new episodes ingested" on Dashboard view, read from refresh_log.json
 - [ ] **Railway weekly cron** — Schedule auto_refresh.py to run weekly (Sunday night)
-- [ ] **Error handling and retry** — Graceful handling of failed extractions/ingestions with retry logic
+- [x] **Error handling and retry** — Graceful handling of failed extractions/ingestions with retry logic
 - [ ] **Entity mappings update** — Add query expansion and source filter entries for all 8 new sources
 
 ### Testing & Validation (Phase 9)

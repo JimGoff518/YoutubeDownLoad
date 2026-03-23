@@ -614,7 +614,7 @@ Stores all extracted takeaways, indexed by episode ID.
 {
   "version": "1.0",
   "updated_at": "2026-02-10T...",
-  "total_episodes": 1167,
+  "total_episodes": 1442,
   "episodes": {
     "abc123def456": {
       "source": "Burbon of Proof PlaylistJson (1)",
@@ -652,6 +652,67 @@ The RAG pipeline (`rag.py`) loads `takeaways_index.json` at startup and builds t
 - Formatted as structured text blocks between the context chunks and instructions in the user message
 - Each block includes: source, title, category, bullet-point takeaways, and action items
 - System prompt HOW TO WORK section instructs Claude to use Episode Takeaways for synthesis
+
+---
+
+## Auto-Refresh Pipeline (Phase 9)
+
+### auto_refresh.py
+
+Automated ingestion pipeline that checks monitored YouTube sources for new episodes, transcribes them via Whisper, chunks/embeds/upserts to Pinecone, and extracts takeaways via Claude.
+
+**Usage:**
+```bash
+# Refresh all enabled sources
+python auto_refresh.py
+
+# Refresh a single source by name
+python auto_refresh.py --source "PI Wingman"
+
+# Dry run (check for new episodes without ingesting)
+python auto_refresh.py --dry-run
+```
+
+**Pipeline steps per episode:**
+1. YouTube API check for new videos (not in `known_video_ids`)
+2. yt-dlp audio download → ffmpeg compression
+3. OpenAI Whisper transcription (splits >25MB files into 15-min chunks)
+4. Text chunking (800 tokens, 100 overlap)
+5. OpenAI embeddings → Pinecone upsert
+6. Claude takeaways extraction
+7. Update `sources_registry.json` with new video IDs
+8. Log results to `refresh_log.json`
+
+### sources_registry.json
+
+Config file tracking all monitored YouTube sources and their ingestion state.
+
+```json
+{
+  "version": "1.0",
+  "sources": [
+    {
+      "name": "PI Wingman",
+      "type": "youtube_channel",
+      "channel_id": "UCFlV9DM5dSwE2SG_6QxlEQA",
+      "output_source_name": "PIWingman",
+      "display_name": "PI Wingman (Cases On Demand)",
+      "enabled": true,
+      "known_video_ids": ["video_id_1", "video_id_2", ...]
+    }
+  ]
+}
+```
+
+| Field | Purpose |
+|-------|---------|
+| `name` | Human-readable source name (used with `--source` flag) |
+| `type` | `youtube_channel` or `youtube_playlist` |
+| `channel_id` / `playlist_id` | YouTube identifier for the source |
+| `output_source_name` | Pinecone `source` metadata value and output JSON filename |
+| `display_name` | Full display name for UI |
+| `enabled` | Whether auto-refresh includes this source |
+| `known_video_ids` | List of already-ingested video IDs (prevents duplicates) |
 
 ---
 
