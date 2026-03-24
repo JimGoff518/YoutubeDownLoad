@@ -374,7 +374,10 @@ function appendMessage(role, content) {
     const renderedContent = content ? marked.parse(content) : '';
 
     div.innerHTML = `
-        <div class="message-role">${role === 'user' ? 'You' : 'Super Agent'}</div>
+        <div class="message-header">
+            <div class="message-role">${role === 'user' ? 'You' : 'Super Agent'}</div>
+            ${role === 'assistant' ? '<button class="copy-btn" title="Copy response" onclick="copyMessage(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>' : ''}
+        </div>
         <div class="message-content">${renderedContent}</div>
     `;
     container.appendChild(div);
@@ -420,6 +423,26 @@ function showLoadingIndicator() {
 // -----------------------------------------------------------------------------
 // Utility Functions
 // -----------------------------------------------------------------------------
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const isOpen = sidebar.classList.toggle('mobile-open');
+    overlay.classList.toggle('active', isOpen);
+}
+
+function copyMessage(btn) {
+    const content = btn.closest('.message').querySelector('.message-content');
+    const text = content.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+        }, 2000);
+    });
+}
 
 function scrollToBottom() {
     const container = document.getElementById('messages-container');
