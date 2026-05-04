@@ -122,6 +122,8 @@ SOURCE_DISPLAY_NAMES = {
     "LegalTechTrends2025": "Legal Tech Trends Report 2025",
     "CMOSurvey2025": "CMO Survey 2025",
     "TipTheScales": "Bob Simon (Tip the Scales)",
+    "TipTheScalesYT": "Bob Simon (Tip the Scales)",
+    "PIMPodcast": "Personal Injury Mastermind (Chris Dreyer)",
     "ReferralMarketingClub_Q4": "Ken Hardison (Referral Marketing Club)",
     "TrialLawyer_Spring2024": "Trial Lawyer Magazine (Spring 2024)",
     "TrialLawyer_Summer2024": "Trial Lawyer Magazine (Summer 2024)",
