@@ -1,0 +1,53 @@
+name: Weekly Auto-Refresh
+
+on:
+  schedule:
+    # Every Sunday at 3:00 AM UTC (Saturday 10:00 PM CT)
+    - cron: '0 3 * * 0'
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 hour max (large sources can take time)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run auto-refresh pipeline
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          PYTHONUNBUFFERED: '1'
+        run: python -u auto_refresh.py
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet sources_registry.json takeaways_index.json refresh_log.json output/ || echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push updates
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sources_registry.json takeaways_index.json refresh_log.json output/
+          EPISODE_COUNT=$(python -c "import json; d=json.load(open('refresh_log.json')); r=d[-1]; print(r.get('episodes_ingested', 0))")
+          git commit -m "Auto-refresh: ${EPISODE_COUNT} new episodes ingested [skip ci]"
+          git push
