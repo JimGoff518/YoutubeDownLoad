@@ -1,6 +1,6 @@
 # Bill AI Machine - Project Status
 
-**Last updated:** March 23, 2026
+**Last updated:** May 4, 2026
 **Owner:** Goff Law (Personal Injury Law Firm, Dallas TX)
 
 ---
@@ -113,6 +113,7 @@ Podcast RSS Feeds ───── Podcast Extractor ──────► JSON F
 | `ingest_new_sources.py` | Selective ingestion of specific JSON files to Pinecone | New |
 | `auto_refresh.py` | Auto-refresh pipeline: check → extract → chunk → embed → takeaways | **New** |
 | `sources_registry.json` | Source registry with known episode IDs for dedup | **New** |
+| `.github/workflows/auto-refresh.yml` | Weekly cron — runs `auto_refresh.py` every Sunday 3 AM UTC, commits results back to repo | **New** |
 
 ### 6. Automated Tests (New)
 
@@ -200,13 +201,17 @@ Entity mappings are configured in `entity_mappings.json`. Takeaways: **1,442 epi
 | PI Playbook by Xcelerator | YouTube Playlist | `PIPlaybook` | 38 | **Ingested** ✓ |
 | ExtroMarketing | YouTube Channel | `ExtroMarketing` | 13 | **Ingested** ✓ |
 
-**Remaining new sources (not yet ingested):**
+**Going-forward-only sources (back catalogs intentionally skipped — only new uploads from May 4, 2026 onward will be ingested):**
 
-| Source | Type | Channel/Playlist ID | Videos | Status |
-|--------|------|---------------------|--------|--------|
-| WEBRIS: Legal Marketing | YouTube Channel | `UCNOyABR6DZeyWlNd1YAcj6Q` | ~208 | Paused |
-| Juris Digital | YouTube Channel | `UCUhZZMr0706Jkc5eLZTGzMg` | ~1,087 | Paused |
-| Grow Law Podcast | YouTube Playlist | `PL9bB1gyfxphQHV5XQz6u0Tfs9HuzXCnwn` | 137 | Disabled |
+| Source | Type | Pinecone source name | Known IDs | Notes |
+|--------|------|---------------------|-----------|-------|
+| WEBRIS: Legal Marketing | YouTube Channel | `WEBRIS` | 211 | Back catalog skipped to avoid ~$3 spend |
+| Juris Digital | YouTube Channel | `JurisDigital` | 1,145 | Back catalog skipped to avoid ~$17 spend |
+| Personal Injury Mastermind (Chris Dreyer) | YouTube Channel | `PIMPodcast` | 1,559 | Back catalog already in Pinecone as `PIM_Podcast_Season1/2/3` (from local m4a ingestion) |
+| Tip the Scales (Bob Simon) | YouTube Channel | `TipTheScalesYT` | 752 | Back catalog already in Pinecone as `TipTheScales` (from local m4a ingestion) |
+| Grow Law Podcast | YouTube Playlist | `GrowLawPodcast` | — | Disabled — duplicate of Grow Your Law Firm |
+
+**Auto-refresh schedule:** Weekly via GitHub Actions (`.github/workflows/auto-refresh.yml`). Fires every Sunday at 3 AM UTC (Saturday 10 PM CT). Cron commits updated `sources_registry.json`, `takeaways_index.json`, `refresh_log.json`, and new `output/<source>.json` files back to the repo; Railway auto-redeploys with fresh data.
 
 ---
 
@@ -243,6 +248,7 @@ docker run -p 8080:8080 --env-file .env bill-ai-machine
 
 ## Recent Changes
 
+- **May 4, 2026 (session 16):** Phase 9 weekly cron is now LIVE + 4 new sources added to monitoring. Pushed `.github/workflows/auto-refresh.yml` to GitHub (was previously committed but never pushed). Installed GitHub CLI via winget, authenticated, configured 5 repository secrets (debugged a leading-`=` paste error across all keys), verified end-to-end with a manual `gh workflow run` (run reached Pinecone init successfully, then cancelled before Juris Digital backlog ingestion). Added Personal Injury Mastermind / Chris Dreyer (`UC0Sn0QLAUhKD8l3w98LBJ_A`, 1,559 IDs) and Tip the Scales Podcast (`UC1Crd3dEEToLsnP_UOW5fAA`, 752 IDs) to `sources_registry.json` with all current video IDs pre-loaded ("going-forward only" approach). Pre-filled Juris Digital (1,145 IDs) and WEBRIS (211 IDs) the same way to prevent the cron from spending ~$30 on back-catalog ingestion. Updated `entity_mappings.json` so PIM/Chris Dreyer queries route to both old (`PIM_Podcast_Season1/2/3`) and new (`PIMPodcast`) source names; same pattern for Tip the Scales. Added `PIMPodcast` and `TipTheScalesYT` display names to `rag.py`. Total monitored sources: 11 with 4,127 known IDs. Cron fires next at Sun May 10 3 AM UTC. Outstanding: rotate exposed Anthropic API key, backfill ~12 existing sources (CEO Lawyer, John Morgan, Maximum Lawyer, etc.) into registry.
 - **Mar 23, 2026 (session 15):** Grey Smoke Media + PI Wingman ingestion — Ingested 145 Grey Smoke Media episodes (143 takeaways) and 37 PI Wingman episodes (35 takeaways) via `auto_refresh.py --source`. Backfilled 8 Grey Smoke Media episodes that failed during initial run using `extract_takeaways.py`. Both committed and deployed to Railway. Total: 1,442 episodes, 5,634 topics, 38 sources. WEBRIS and Juris Digital remain paused. Phase 9 auto-refresh pipeline now 5 of 8 new sources complete.
 - **Feb 22, 2026 (session 14):** Auto-refresh pipeline implementation + initial ingestion — Built `auto_refresh.py` (single-source and full pipeline modes), `sources_registry.json` (10 monitored sources with known_video_ids), Dashboard "Refresh Now" button (`/api/refresh`), and notification banner. Ingested 5 initial sources: Championing Justice (29 eps), PI Playbook (38 eps), ExtroMarketing (13 eps), plus updates to Bourbon of Proof and Grow Your Law Firm. Added 8 new source configs to registry.
 - **Feb 22, 2026 (session 13):** Production deployment verified + Auto-Refresh Pipeline design — Confirmed Dashboard Command Center is live on `gofflawsuperagent.up.railway.app` (health check passing, stats API returning 1,167 episodes / 30 sources / 4,952 topics, news ticker loading). Designed Phase 9 Auto-Refresh Pipeline: weekly Railway cron + Dashboard "Refresh Now" button, dashboard banner notifications. Finalized 20 monitored sources (12 existing + 8 new). New sources: PI Wingman (36 vids), Grey Smoke Media (150 vids), Juris Digital (1,054 vids), Grow Law Podcast (137 vids), Championing Justice (29 vids), PI Playbook by Xcelerator (38 vids), ExtroMarketing (14 vids), WEBRIS Legal Marketing (204 vids). Removed Pre-Lit Guru (deprioritized) and rejected Andy Stickel/Bill Hauser (2,173 vids — too expensive). No code written this session — design/planning only.
@@ -310,6 +316,7 @@ Bill AI Machine/
 ├── takeaways_index.json          # Structured takeaways index (1,442 episodes)
 ├── auto_refresh.py               # Auto-refresh pipeline (Phase 9)
 ├── sources_registry.json         # Source registry with known video IDs
+├── .github/workflows/auto-refresh.yml  # Weekly cron (GitHub Actions, Sun 3 AM UTC)
 ├── DOCUMENTATION.md              # Technical reference (extraction APIs & models)
 ├── docs/plans/                   # Design documents
 ├── Dockerfile                    # Container definition
